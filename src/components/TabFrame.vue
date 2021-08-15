@@ -82,6 +82,7 @@ import TSO from '@/components/Comics/tso.vue'
 import SNAPS from '@/components/Comics/Snaps.vue'
 
 import TESTS from '@/components/Extras/tests.vue'
+import FILEMAN from '@/components/Extras/fileman.vue'
 
 import ModBrowserPageMixin from '@/components/CustomContent/ModBrowserPageMixin.vue'
 
@@ -141,7 +142,8 @@ export default {
         TSO,
         SNAPS,
 
-        TESTS
+        TESTS,
+        FILEMAN
     },
     data() {
         return {
