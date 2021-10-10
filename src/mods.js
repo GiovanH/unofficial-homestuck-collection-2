@@ -101,6 +101,8 @@ if (ipcMain) {
     if (modsDir == undefined)
       return // Pre-setup, we're probably fine ignoring this.
 
+    store.set("needsRecovery", true)
+
     if (win) {
       win.webContents.send('MOD_LOAD_FAIL', responsible_mods, e)
     } else {
@@ -122,6 +124,8 @@ if (ipcMain) {
     if (modsDir == undefined)
       return // Pre-setup, we're probably fine ignoring this.
 
+    store.set("needsRecovery", true)
+
     logger.info("RENDER: Mod load failure with modlist", responsible_mods)
     logger.error(e)
 
@@ -130,6 +134,8 @@ if (ipcMain) {
       // Have to invoke reload because we probably don't even have the VM at this point
       ipcRenderer.invoke('reload')
     }
+    window.doReloadNoRecover = __ => ipcRenderer.invoke('reload')
+    window.doFullRestart = __ => ipcRenderer.invoke('restart')
 
     function sanitizeHTML(str) {
       var temp = document.createElement('div')
@@ -154,7 +160,9 @@ if (ipcMain) {
         <p>Something went wrong while loading mods <em>${responsible_mods}</em>! 
         These have been disabled for safety.</p>
         <pre>${sanitizeHTML(e)}</pre>
-        <input type="button" value="Disable bad mods and Reload" onclick="doErrorRecover()" /><br />
+        <input type="button" value="1. Disable bad mods and Reload" onclick="doErrorRecover()" /><br />
+        <input type="button" value="2. Restart and attempt auto-recovery (if 1 didn't work)" onclick="doFullRestart()" /><br />
+        <input type="button" value="3. Attempt reload without making changes (if you made external changes)" onclick="doReloadNoRecover()" /><br />
         <p>For troubleshooting, save this error message or the <a href="${log.transports.file.getFile()}">log file</a></p><br />
         <p>Stacktrace:</p>
         <pre>${sanitizeHTML(e.stack)}</pre>
@@ -438,6 +446,7 @@ function editArchive(archive) {
       }
     } catch (e) {
       onModLoadFail([js._id], e)
+      throw e
     }
   })
 

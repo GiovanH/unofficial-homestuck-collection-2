@@ -261,6 +261,9 @@ function loadArchiveData(){
     // This is probably due to a poorly written mod, somehow.
     // specifically $localdata can be in an invalid state
     logger.error("Error applying mods to archive? DEBUG THIS!!!", e)
+    console.log("Error applying mods to archive? DEBUG THIS!!!", e)
+
+    extractimods() // just in case, try to recover from broken imods
 
     dialog.showMessageBoxSync({
       type: 'error',
@@ -397,16 +400,6 @@ ipcMain.on('STARTUP_GET_PORT', (event) => {
   event.returnValue = port
 })
 
-// Speed hack, try to preload the first copy of the archive
-var first_archive
-var archive // Also, keep a reference to the latest archive, for lazy eval
-try {
-  archive = first_archive = loadArchiveData()
-} catch (e) {
-  // logger.warn(e)
-  // don't even warn, honestly
-}
-
 if (assetDir) {
   // App version checks
   const last_app_version = store.has("appVersion") ? store.get("appVersion") : '1.0.0'
@@ -420,8 +413,25 @@ if (assetDir) {
   }
 
   store.set("appVersion", APP_VERSION)
+
+  if (store.get("needsRecovery")) {
+    logger.info("Detected needsRecovery flag, running troubleshooter.")
+    extractimods()
+    store.set("needsRecovery", false)
+  }
+  
 } else {
   console.log("Deferring app version checks until initial configuration is complete.")
+}
+
+// Speed hack, try to preload the first copy of the archive
+var first_archive
+var archive // Also, keep a reference to the latest archive, for lazy eval
+try {
+  archive = first_archive = loadArchiveData()
+} catch (e) {
+  // logger.warn(e)
+  // don't even warn, honestly
 }
 
 ipcMain.on('RELOAD_ARCHIVE_DATA', (event) => {
