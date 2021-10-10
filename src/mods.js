@@ -333,7 +333,10 @@ function getModJs(mod_dir, options={}) {
     let thisModsDir = modsDir
     let thisModsAssetRoot = modsAssetsRoot
 
+    let use_webpack_require = false
+
     if (mod_dir.startsWith("_")) {
+      // use_webpack_require = true
       thisModsDir = imodsDir
       thisModsAssetRoot = imodsAssetsRoot
     } 
@@ -344,12 +347,14 @@ function getModJs(mod_dir, options={}) {
       modjs_path = path.join(thisModsDir, mod_dir, "mod.js")
     }
 
-    // eslint-disable-next-line no-undef
-    if (__non_webpack_require__.cache[modjs_path])
-      // eslint-disable-next-line no-undef
-      delete __non_webpack_require__.cache[modjs_path]
-    // eslint-disable-next-line no-undef
-    mod = __non_webpack_require__(modjs_path)
+    if (use_webpack_require) {
+      console.log(modjs_path)
+      mod = require(modjs_path)
+    } else {
+      if (__non_webpack_require__.cache[modjs_path])
+        delete __non_webpack_require__.cache[modjs_path]
+      mod = __non_webpack_require__(modjs_path)
+    }
 
     mod._id = mod_dir
     mod._singlefile = options.singlefile
