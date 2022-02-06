@@ -4,31 +4,18 @@
     <div class="pageFrame psMap" v-if="isPSMap">
       <div class="pageContent">
         <h2 class="pageTitle">Problem Sleuth Map</h2>
+        <svg width="610" height="2444" xmlns="http://www.w3.org/2000/svg"
+          style="position: absolute; pointer-events: none;">
+          <rect v-for="c, page in psSpoilerRegions(false)" :key="page"
+            :x="c.x1" :y="c.y1" :width="c.x2-c.x1" :height="c.y2-c.y1"
+            fill="white" />
+        </svg>
         <Media url="/maps/map_04.gif" useMap="#problemSleuth"/>
         <map name="problemSleuth">
           <area shape="rect" href="/unlock/PS_titlescreen" coords="18,17,190,140">
-          <area shape="rect" href="/mspa/000219" coords="223,2,413,167">
-          <area shape="rect" href="/mspa/000302" coords="440,-9,630,185">
-          <area shape="rect" href="/mspa/000402" coords="382,226,627,399">
-          <area shape="rect" href="/mspa/000448" coords="83,180,336,304">
-          <area shape="rect" href="/mspa/000546" coords="-4,327,294,466">
-          <area shape="rect" href="/mspa/000604" coords="51,489,351,629">
-          <area shape="rect" href="/mspa/000666" coords="389,415,612,596">
-          <area shape="rect" href="/mspa/000742" coords="365,608,654,801">
-          <area shape="rect" href="/mspa/000816" coords="-10,628,334,809">
-          <area shape="rect" href="/mspa/000873" coords="-10,820,183,1026">
-          <area shape="rect" href="/mspa/000953" coords="221,813,363,987">
-          <area shape="rect" href="/mspa/001030" coords="394,808,627,1014">
-          <area shape="rect" href="/mspa/001069" coords="394,1023,601,1230">
-          <area shape="rect" href="/mspa/001149" coords="204,1029,379,1211">
-          <area shape="rect" href="/mspa/001257" coords="-10,1030,169,1213">
-          <area shape="rect" href="/mspa/001299" coords="52,1245,307,1429">
-          <area shape="rect" href="/mspa/001406" coords="351,1252,620,1511">
-          <area shape="rect" href="/mspa/001466" coords="227,1575,402,1687">
-          <area shape="rect" href="/mspa/001507" coords="56,1759,238,1945">
-          <area shape="rect" href="/mspa/001589" coords="345,1728,602,1934">
-          <area shape="rect" href="/mspa/001655" coords="189,1977,435,2168">
-          <area shape="rect" href="/mspa/001708" coords="53,2202,563,2443">
+          <area v-for="c, page in psSpoilerRegions(true)" 
+            :href="`/mspa/${page}`" :key="page" 
+            shape="rect" :coords="`${c.x1},${c.y1},${c.x2},${c.y2}`">
         </map>
       </div>
     </div>
@@ -668,7 +655,32 @@ export default {
     return "Adventure Map" + (adventureTitle || '')
   },
   data: function() {
-    return {}
+    return {
+      psRegions: {
+        "000219": {x1: 223, y1: 2, x2: 413, y2: 167},
+        "000302": {x1: 440, y1: -9, x2: 630, y2: 185},
+        "000402": {x1: 382, y1: 226, x2: 627, y2: 399},
+        "000448": {x1: 83, y1: 180, x2: 336, y2: 304},
+        "000546": {x1: -4, y1: 327, x2: 294, y2: 466},
+        "000604": {x1: 51, y1: 489, x2: 351, y2: 629},
+        "000666": {x1: 389, y1: 415, x2: 612, y2: 596},
+        "000742": {x1: 365, y1: 608, x2: 654, y2: 801},
+        "000816": {x1: -10, y1: 628, x2: 334, y2: 809},
+        "000873": {x1: -10, y1: 820, x2: 183, y2: 1026},
+        "000953": {x1: 221, y1: 813, x2: 363, y2: 987},
+        "001030": {x1: 394, y1: 808, x2: 627, y2: 1014},
+        "001069": {x1: 394, y1: 1023, x2: 601, y2: 1230},
+        "001149": {x1: 204, y1: 1029, x2: 379, y2: 1211},
+        "001257": {x1: -10, y1: 1030, x2: 169, y2: 1213},
+        "001299": {x1: 52, y1: 1245, x2: 307, y2: 1429},
+        "001406": {x1: 351, y1: 1252, x2: 620, y2: 1511},
+        "001466": {x1: 227, y1: 1575, x2: 402, y2: 1687},
+        "001507": {x1: 56, y1: 1759, x2: 238, y2: 1945},
+        "001589": {x1: 345, y1: 1728, x2: 602, y2: 1934},
+        "001655": {x1: 189, y1: 1977, x2: 435, y2: 2168},
+        "001708": {x1: 53, y1: 2202, x2: 563, y2: 2443}
+      }
+    }
   },
   computed: {
     isPSMap() {
@@ -679,6 +691,11 @@ export default {
     }
   },
   methods: {
+    psSpoilerRegions(invert=false){
+      return Object.keys(this.psRegions)
+        .filter(key => this.$pageIsSpoiler(key) ^ invert)
+        .reduce((acc, p) => {acc[p] = this.psRegions[p]; return acc}, {})
+    }
   },
 }
 </script>
@@ -690,7 +707,7 @@ export default {
     
     margin: 0;
     padding: 0;
-    display: flex;
+    display: flex;  
     flex-flow: column;
     flex: 1 0 auto;
     align-items: center;
