@@ -15,6 +15,9 @@
 </template>
 
 <script>
+
+const {ipcRenderer} = require('electron')
+
 export default {
   name: 'tab',
   props: [
@@ -24,12 +27,15 @@ export default {
     return {
       pendingDeletion: false,
       resizeObserver: undefined,
-      titleFade: false
+      titleFade: false,
+      isCurrentlyAudible: false,
+      isAudibleLoop: null
     }
   },
   computed: {
     hasAudio() {
-      return this.tab.hasAudio
+      // this.$logger.info(this.title, "hasAudio?", this.tab.hasEmbed, this.isCurrentlyAudible)
+      return this.tab.hasEmbed && this.isCurrentlyAudible
     },
     isActiveTab() {
       return this.tab.key === this.$localData.tabData.activeTabKey
@@ -38,8 +44,7 @@ export default {
       return this.$localData.tabData.tabList.length
     },
     title() {
-        let result = !!this.tab.title ? this.tab.title : this.tab.url
-        return result
+        return this.tab.title ? this.tab.title : this.tab.url
     }
   },
   methods: {
@@ -58,14 +63,39 @@ export default {
       const titleTextWidth = this.$refs.titleText.getBoundingClientRect().width
       
       this.titleFade = (titleWidth < titleTextWidth)
+    },
+    updateIsaudible(){
+      if (this.isActiveTab || this.isCurrentlyAudible) {
+        this.isCurrentlyAudible = ipcRenderer.sendSync('IS_CURRENTLY_AUDIBLE')
+      }
+    },
+    updateIsaudibleLoop(){
+      if (this.tab.hasEmbed) {
+        this.$logger.info(this.tab.title, "Starting isAudible loop")
+        this.isAudibleLoop = setInterval(() => {this.updateIsaudible()}, 1000)
+      } else {
+        this.$logger.info(this.tab.title, "has no embed, no isAudible")
+        clearInterval(this.isAudibleLoop)
+      }
+      this.updateIsaudible()
     }
   },
   watch: {
     'tab.title'(){
       this.$nextTick(this.onResize)
+    },
+    'tab.hasEmbed'(to, from){
+      this.updateIsaudibleLoop()
+    },
+    'tab.url'(to, from){
+      this.updateIsaudibleLoop()
     }
   },
+  created() {
+    this.updateIsaudibleLoop()
+  },
   mounted() {
+    this.updateIsaudibleLoop()
     this.resizeObserver = new ResizeObserver(this.onResize)
     this.resizeObserver.observe(this.$refs.title)
   },

@@ -380,6 +380,10 @@ ipcMain.on('STARTUP_GET_INFO', (event) => {
   event.returnValue = {port: port, appVersion: APP_VERSION}
 })
 
+ipcMain.on('IS_CURRENTLY_AUDIBLE', (event) => {
+  event.returnValue = win.webContents.isCurrentlyAudible()
+})
+
 if (assetDir) {
   // App version checks
   const last_app_version = store.has("appVersion") ? store.get("appVersion") : '1.0.0'
