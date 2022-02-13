@@ -258,6 +258,23 @@ export default {
         }
     }
 
+    ::v-deep .tricksterColorCycle {
+        @keyframes colorCycleAnim {
+            0% {color: #FFD1D1;}
+            14% {color: #FFE6D1;}
+            28% {color: #FFF6D1;}
+            42% {color: #D1FFE3;}
+            57% {color: #D1F9FF;}
+            71% {color: #D1DCFF;}
+            85% {color: #F0D1FF;}
+            100% {color: #FFD1D1;}
+        }    
+        animation-name: colorCycleAnim;
+        animation-duration: 350ms;
+        animation-iteration-count: infinite;
+        animation-timing-function: linear;
+    }
+
     .text {
         font-family: 'Courier New', Courier, monospace;
         font-weight: normal;
