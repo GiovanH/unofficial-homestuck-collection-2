@@ -256,24 +256,64 @@ export default {
                 color: var(--page-links-visited);
             }
         }
+
+        .tricksterColorCycle {
+            @keyframes colorCycleAnim {
+                0% {color: #FFD1D1;}
+                14% {color: #FFE6D1;}
+                28% {color: #FFF6D1;}
+                42% {color: #D1FFE3;}
+                57% {color: #D1F9FF;}
+                71% {color: #D1DCFF;}
+                85% {color: #F0D1FF;}
+                100% {color: #FFD1D1;}
+            }    
+            animation-name: colorCycleAnim;
+            animation-duration: 350ms;
+            animation-iteration-count: infinite;
+            animation-timing-function: linear;
+        }
+
+        .arspriteGlitch {
+            background: url(assets://storyfiles/hs2/scraps/textStatic.gif);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .johnBlurText {
+            &.one {
+                // Can't blur below 1 px
+                opacity: 0.7;
+                text-shadow: 0 0 2px #00f;
+            }
+            &.two {filter: blur(1px);}
+            &.three {filter: blur(2px);}
+        }
+        .karkatBlurText {
+            filter: blur(1px);
+        }
+
+        .davejade_smalltext {
+            font-size: 0.5em !important;
+            &.two {
+                overflow: hidden;
+                position: relative;
+                mix-blend-mode: hard-light;
+                &::after {
+                    position: absolute;
+                    content: "";
+                    left: 0px;
+                    top: 0px;
+                    height: 100%;
+                    width: 100%;
+                    background: linear-gradient(transparent, gray);
+                    pointer-events: none;
+                }
+            }
+        }
     }
 
-    ::v-deep .tricksterColorCycle {
-        @keyframes colorCycleAnim {
-            0% {color: #FFD1D1;}
-            14% {color: #FFE6D1;}
-            28% {color: #FFF6D1;}
-            42% {color: #D1FFE3;}
-            57% {color: #D1F9FF;}
-            71% {color: #D1DCFF;}
-            85% {color: #F0D1FF;}
-            100% {color: #FFD1D1;}
-        }    
-        animation-name: colorCycleAnim;
-        animation-duration: 350ms;
-        animation-iteration-count: infinite;
-        animation-timing-function: linear;
-    }
+    ::v-deep 
 
     .text {
         font-family: 'Courier New', Courier, monospace;
