@@ -1,16 +1,33 @@
-import fs from 'fs'
-import path from 'path'
-import yaml from 'js-yaml'
+console.error("Loading mods.js")
 
-const {ipcMain, ipcRenderer, dialog} = require('electron')
+var ipcMain, dialog, unzipper, tar
+var store, log
+if (!isWebApp) {
+  var {ipcMain, dialog} = require('electron')
+
+  log = require('electron-log')
+
+  unzipper = require("unzipper")
+  Tar = require('tar');
+
+  const Store = require('electron-store')
+  store = new Store()
+
+  fs = require('fs').default
+  path = require('path').default
+  yaml = require('js-yaml').default
+
+} else {
+  store = require('@/../webapp/localstore.js')
+  log = {
+    scope() { return console; }
+  }
+}
+
+const ipcRenderer = (isWebApp ? require('@/../webapp/fakeIpc.js') : require('electron').ipcRenderer)
+
 const sass = require('sass')
-const unzipper = require("unzipper")
-const Tar = require('tar');
 
-const Store = require('electron-store')
-const store = new Store()
-
-const log = require('electron-log')
 const logger = log.scope('Mods')
 
 const assetDir = store.has('localData.assetDir') ? store.get('localData.assetDir') : undefined

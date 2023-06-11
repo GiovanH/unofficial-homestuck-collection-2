@@ -18,7 +18,12 @@
 <script>
 import MediaEmbed from '@/components/UIElements/MediaEmbed.vue'
 import FlashCredit from '@/components/UIElements/FlashCredit.vue'
-const { shell } = require('electron')
+
+
+var shell;
+if (!window.isWebApp) {
+  var { shell } = require('electron')
+}
 
 export default {
   name: 'modal',

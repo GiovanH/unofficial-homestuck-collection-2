@@ -1,3 +1,6 @@
+
+console.warn(window.isWebApp)
+
 import Vue from 'vue'
 import App from './App'
 import router from './router'
@@ -14,12 +17,6 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
 import Memoization from '@/memoization.js'
 
-const Store = require('electron-store')
-const store = new Store()
-
-const log = require('electron-log');
-log.transports.console.format = '[{level}] {text}';
-
 library.add([
   faExternalLinkAlt, faChevronUp, faChevronRight, faChevronDown, faChevronLeft, 
   faSearch, faEdit, faSave, faTrash, faTimes, faPlus, faPen, faMusic, faLock, 
@@ -30,25 +27,51 @@ Vue.component('fa-icon', FontAwesomeIcon)
 
 Vue.config.productionTip = false
 
+const Resources = require("@/resources.js")
+
+// Must init resources first.
+var Mods, port, appVersion, store, log
+if (!window.isWebApp) {
+  Mods = require('@/mods.js').default
+
+  var {shell, ipcRenderer} = require('electron')
+  var {port, appVersion} = ipcRenderer.sendSync('STARTUP_GET_INFO')
+
+  Store = require('electron-store')
+  store = new Store()
+
+  log = require('electron-log');
+  log.transports.console.format = '[{level}] {text}';
+
+  Resources.init({
+    assets_root: `http://127.0.0.1:${port}/`
+  })
+} else {
+  Mods = undefined
+  port = undefined
+  appVersion = undefined
+
+  store = require('@/../webapp/localstore.js')
+  log = {
+    scope() { return console; }
+  }
+
+  Resources.init({
+    assets_root: window.webAppAssetDir
+  })
+}
+
+if (Mods) {
+  Mods.getMixins().forEach((m) => Vue.mixin(m))
+  window.doFullRouteCheck = Mods.doFullRouteCheck
+}
+
 Vue.use(localData, {
   store: new localData.Store(store.get('localData'))
 })
 
-const {shell, ipcRenderer} = require('electron')
-const {port, appVersion} = ipcRenderer.sendSync('STARTUP_GET_INFO')
-
-const Resources = require("@/resources.js")
-Resources.init({
-  assets_root: `http://127.0.0.1:${port}/`
-})
-
-// Must init resources first.
-import Mods from "./mods.js"
-
-window.doFullRouteCheck = Mods.doFullRouteCheck
 
 // Mixin mod mixins
-Mods.getMixins().forEach((m) => Vue.mixin(m))
 
 // eslint-disable-next-line no-extend-native
 Number.prototype.pad = function(size) {
@@ -75,8 +98,9 @@ Vue.mixin({
     $newReaderCurrent() {
       return this.$localData.settings.newReader.current
     },
-    $modChoices: Mods.getModChoices,
-    $logger() {return log.scope(this.$options.name || this.$options._componentTag || "undefc!")}
+    $modChoices: (Mods != undefined ? Mods.getModChoices() : () => []),
+    $logger() {return log.scope(this.$options.name || this.$options._componentTag || "undefc!")},
+    $isWebApp() { return window.isWebApp || false }
   },
   methods: {
     $resolvePath(to){
@@ -121,7 +145,7 @@ Vue.mixin({
 
       if (!/(app:\/\/\.(index)?|\/\/localhost:8080)/.test(urlObject.origin)) {
         // Link is external
-        if (urlObject.href.includes('steampowered.com/app')) {
+        if (ipcRenderer && urlObject.href.includes('steampowered.com/app')) {
           ipcRenderer.invoke('steam-open', urlObject.href)
         } else shell.openExternal(Resources.resolveURL(urlObject.href))
       } else if (/\.(html|pdf)$/i.test(to)){
@@ -378,14 +402,15 @@ window.Vue = Vue;
 window.vm = new Vue({
   data(){
     return {
-      archive: undefined,
-      loadState: undefined
+      archive: window.webAppArchive || undefined,
+      loadState: undefined,
     }
   },
   computed: {
     // Easy access
     app(){ return this.$refs.App },
-    tabTheme(){ return this.app.tabTheme }
+    tabTheme(){ return (this.app ? this.app.tabTheme : {}) },
+    isWebApp() { return false }
   },
   router,
   render: function (h) { return h(App, {ref: 'App'}) },

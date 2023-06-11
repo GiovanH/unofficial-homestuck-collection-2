@@ -73,7 +73,11 @@
 </template>
 
 <script>
-const {shell, clipboard, ipcRenderer} = require('electron')
+
+var shell, clipboard, ipcRenderer;
+if (!window.isWebApp) {
+  var {shell, clipboard, ipcRenderer} = require('electron')
+}
 
 export default {
   name: 'contextMenu',

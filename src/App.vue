@@ -8,9 +8,9 @@
       <AppHeader :class="theme" ref="uistyle" />
       <TabFrame v-for="key in tabList" :key="key" :ref="key"  :tabKey="key"/>
       <Notifications :class="theme" ref="notifications" />
-      <ContextMenu :class="theme" ref="contextMenu" />
-      <Updater ref="Updater" />
-      <UrlTooltip :class="theme" ref="urlTooltip" v-if="$localData.settings.urlTooltip"/>
+      <ContextMenu :class="theme" ref="contextMenu" v-if="!$isWebApp" />
+      <Updater ref="Updater" v-if="!$isWebApp" />
+      <UrlTooltip :class="theme" ref="urlTooltip" v-if="$localData.settings.urlTooltip && !$isWebApp"/>
       <component is="style" v-for="s in stylesheets" :id="s.id" :key="s.id" rel="stylesheet" v-text="s.body"/>
     </div>
     <div id="app" class="mspa"  v-else>
@@ -32,11 +32,28 @@
 
   import Mods from "./mods.js"
 
-  const electron = require('electron')
+  const ipcRenderer = (isWebApp ? require('@/../webapp/fakeIpc.js') : require('electron').ipcRenderer)
+
+  var mixins = []
+  var webFrame = undefined;
+
+  if (!window.isWebApp) {
+    webFrame = require('electron').webFrame
+    mixins = [
+      Mods.getMainMixin()
+    ]
+  } else {
+    const Resources = require('./resources.js')
+    mixins = [
+      Mods.getMainMixin(),
+      Resources.UrlFilterMixin
+    ]
+    webframe = undefined;
+  }
 
   export default {
     name: 'HomestuckCollection',
-    mixins: [Mods.getMainMixin()],
+    mixins,
     components: {
       Setup, AppHeader, TabFrame, ContextMenu, Notifications, UrlTooltip, Updater
     },
@@ -105,7 +122,7 @@
     methods: {
       resetZoom() {
         this.zoomLevel = 0
-        electron.webFrame.setZoomLevel(this.zoomLevel)
+        webFrame.setZoomLevel(this.zoomLevel)
       },
       checkTheme() {
         this.needCheckTheme = !this.needCheckTheme;
@@ -113,13 +130,13 @@
       zoomIn() {
         if (this.zoomLevel < 5) {
           this.zoomLevel += 0.5
-          electron.webFrame.setZoomLevel(this.zoomLevel)
+          webFrame.setZoomLevel(this.zoomLevel)
         }
       },
       zoomOut() {
         if (this.zoomLevel > -5) {
           this.zoomLevel -= 0.5
-          electron.webFrame.setZoomLevel(this.zoomLevel)
+          webFrame.setZoomLevel(this.zoomLevel)
         }
       },
       openJumpbox() {
@@ -130,6 +147,9 @@
         }
       },
       updateAppIcon(){ 
+        if (this.$isWebApp)
+          return
+
         this.$nextTick(() => {
           if (!this.$refs["uistyle"]) {
             this.$logger.warn("trying to updateAppIcon, but no uistyle (appheader/setup) element yet")
@@ -149,7 +169,7 @@
             return
           }
           this.$logger.info("Requesting icon change to", app_icon_var)
-          electron.ipcRenderer.send('set-sys-icon', app_icon_var)
+          ipcRenderer.send('set-sys-icon', app_icon_var)
         })
       }
     },
@@ -158,74 +178,79 @@
         this.updateAppIcon()
       } 
     },
+    updated() {
+      if (this.$isWebApp) this.filterLinksAndImages(window.document.body)
+    },
     mounted () {
       this.$nextTick(() => this.updateAppIcon())
 
       this.$localData.root.TABS_SWITCH_TO()
 
-      electron.webFrame.setZoomFactor(1)
+      if (electron) {
+        webFrame.setZoomFactor(1)
 
-      // Ask for a fresh copy of the archive
-      // Root must exist to receive it, so this calls from inside the app
-      electron.ipcRenderer.send("RELOAD_ARCHIVE_DATA") 
+        // Ask for a fresh copy of the archive
+        // Root must exist to receive it, so this calls from inside the app
+        ipcRenderer.send("RELOAD_ARCHIVE_DATA")
 
-      // Sets up listener for the main process
-      electron.ipcRenderer.on('TABS_NEW', (event, payload) => {
-        this.$localData.root.TABS_NEW(this.$resolvePath(payload.url), payload.adjacent)
-      })
-      electron.ipcRenderer.on('TABS_CLOSE', (event, key) => {
-        this.$localData.root.TABS_CLOSE(key)
-      })
-      electron.ipcRenderer.on('TABS_DUPLICATE', (event) => {
-        this.$localData.root.TABS_DUPLICATE()
-      })
-      electron.ipcRenderer.on('TABS_RESTORE', (event) => {
-        this.$localData.root.TABS_RESTORE()
-      })
-      electron.ipcRenderer.on('TABS_CYCLE', (event, payload) => {
-        this.$localData.root.TABS_CYCLE(payload.amount)
-      })
-      electron.ipcRenderer.on('TABS_PUSH_URL', (event, to) => {
-        this.$pushURL(to)
-      })
-      electron.ipcRenderer.on('TABS_HISTORY_BACK', (event) => {
-        this.$localData.root.TABS_HISTORY_BACK()
-      })
-      electron.ipcRenderer.on('TABS_HISTORY_FORWARD', (event) => {
-        this.$localData.root.TABS_HISTORY_FORWARD()
-      })
-      electron.ipcRenderer.on('ZOOM_IN', (event) => {
-        this.zoomIn()
-      })
-      electron.ipcRenderer.on('ZOOM_OUT', (event) => {
-        this.zoomOut()
-      })
-      electron.ipcRenderer.on('ZOOM_RESET', (event) => {
-        this.resetZoom()
-      })
-      electron.ipcRenderer.on('OPEN_FINDBOX', (event) => {
-        this.activeTabComponent.$refs.findbox.open()
-      })      
-      electron.ipcRenderer.on('OPEN_JUMPBOX', (event) => {
-        this.openJumpbox()
-      })      
+        // Sets up listener for the main process
+        ipcRenderer.on('TABS_NEW', (event, payload) => {
+          this.$localData.root.TABS_NEW(this.$resolvePath(payload.url), payload.adjacent)
+        })
+        ipcRenderer.on('TABS_CLOSE', (event, key) => {
+          this.$localData.root.TABS_CLOSE(key)
+        })
+        ipcRenderer.on('TABS_DUPLICATE', (event) => {
+          this.$localData.root.TABS_DUPLICATE()
+        })
+        ipcRenderer.on('TABS_RESTORE', (event) => {
+          this.$localData.root.TABS_RESTORE()
+        })
+        ipcRenderer.on('TABS_CYCLE', (event, payload) => {
+          this.$localData.root.TABS_CYCLE(payload.amount)
+        })
+        ipcRenderer.on('TABS_PUSH_URL', (event, to) => {
+          this.$pushURL(to)
+        })
+        ipcRenderer.on('TABS_HISTORY_BACK', (event) => {
+          this.$localData.root.TABS_HISTORY_BACK()
+        })
+        ipcRenderer.on('TABS_HISTORY_FORWARD', (event) => {
+          this.$localData.root.TABS_HISTORY_FORWARD()
+        })
+        ipcRenderer.on('ZOOM_IN', (event) => {
+          this.zoomIn()
+        })
+        ipcRenderer.on('ZOOM_OUT', (event) => {
+          this.zoomOut()
+        })
+        ipcRenderer.on('ZOOM_RESET', (event) => {
+          this.resetZoom()
+        })
+        ipcRenderer.on('OPEN_FINDBOX', (event) => {
+          this.activeTabComponent.$refs.findbox.open()
+        })
+        ipcRenderer.on('OPEN_JUMPBOX', (event) => {
+          this.openJumpbox()
+        })
 
-      electron.ipcRenderer.on('RELOAD_LOCALDATA', (event) => {
-        this.$localData.VM.reloadLocalStorage()
-      })
-      
-      electron.ipcRenderer.on('ARCHIVE_UPDATE', (event, archive) => {
-        this.$root.archive = archive
-      })
+        ipcRenderer.on('RELOAD_LOCALDATA', (event) => {
+          this.$localData.VM.reloadLocalStorage()
+        })
 
-      electron.ipcRenderer.on('SET_LOAD_STATE', (event, state) => {
-        this.$root.loadState = state
-      })
+        ipcRenderer.on('ARCHIVE_UPDATE', (event, archive) => {
+          this.$root.archive = archive
+        })
 
-      this.$root.loadStage = "MOUNTED"
-      electron.ipcRenderer.on('SET_LOAD_STAGE', (event, stage) => {
-        this.$root.loadStage = stage
-      })
+        ipcRenderer.on('SET_LOAD_STATE', (event, state) => {
+          this.$root.loadState = state
+        })
+
+        this.$root.loadStage = "MOUNTED"
+        ipcRenderer.on('SET_LOAD_STAGE', (event, stage) => {
+          this.$root.loadStage = stage
+        })
+      }
 
       document.addEventListener('dragover', event => event.preventDefault())
       document.addEventListener('drop', event => event.preventDefault())

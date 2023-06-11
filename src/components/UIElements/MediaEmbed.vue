@@ -36,9 +36,16 @@
 </template>
 
 <script>
-import fs from 'fs'
-import path from 'path'
 import Resources from "@/resources.js"
+
+var path, fs
+if (!window.isWebApp) {
+  path = require('path').default
+  fs = require('fs').default
+} else {
+  path = require('path-browserify')
+  fs = undefined
+}
 
 export default {
   name: "MediaEmbed",

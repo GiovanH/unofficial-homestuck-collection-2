@@ -246,7 +246,7 @@
         </div>
       </div>
     </div>
-    <div class="card">
+    <div class="card" v-if="!$isWebApp">
       <div class="settings mod">
         <h2>Mod Settings</h2>
 
@@ -318,7 +318,7 @@
         <button v-if="$localData.settings.devMode" @click="reloadModList(); archiveReload();" class="reload">Soft reload archive (refresh mods and re-run edits)</button>
       </div>
     </div>
-    <div class="card">
+    <div class="card" v-if="!$isWebApp">
       <div class="settings system">
         <h2>System Settings</h2>
         <dl>
@@ -368,10 +368,16 @@ import StoryPageLink from '@/components/UIElements/StoryPageLink.vue'
 import SubSettingsModal from '@/components/UIElements/SubSettingsModal.vue'
 import NewReaderControls from '@/components/SystemPages/NewReaderControls.vue'
 import draggable from "vuedraggable"
-import Mods from "@/mods.js"
 
-const log = require('electron-log')
-const { ipcRenderer } = require('electron')
+var Mods, log;
+if (!window.isWebApp) {
+  Mods = require('@/mods.js').default
+  log = require('electron-log')
+} else {
+  log = console
+}
+
+const ipcRenderer = (isWebApp ? require('@/../webapp/fakeIpc.js') : require('electron').ipcRenderer)
 
 export default {
   name: 'settings',
@@ -566,7 +572,7 @@ export default {
       enableAllControversialConfirmMsg: "This option restores the removed \"controversial material\" without detailed content warnings, to avoid spoilers. \n\n Are you sure you want to enable this option now?",
       debounce: false,
       needReload: false,
-      modsDir: Mods.modsDir
+      modsDir: (Mods ? Mods.modsDir : undefined)
     }
   },
   computed: {

@@ -1,9 +1,17 @@
 // Rules for transforming intercepted URLS
 const path = require('path')
+
+var ipcMain, ipcRenderer, dialog
+
 const Mods = require('@/mods.js').default
 
-const log = require('electron-log');
-const logger = log.scope('Resources');
+var logger;
+if (!window.isWebApp) {
+  log = require('electron-log');
+  logger = log.scope('Resources');
+} else {
+  logger = console
+}
 
 // ====================================
 // Asset resolution
@@ -156,15 +164,17 @@ function resolveAssetsProtocol(asset_url, loopcheck=[]) {
 
   console.assert(asset_url.startsWith("assets://"), "resources", asset_url)
 
-  const mod_route = Mods.getAssetRoute(asset_url)
-  if (mod_route) {
-    // logger.debug("[resolvA]", asset_url, "mod to", mod_route)
-    if (loopcheck.includes(mod_route)) {
-      loopcheck.push(mod_route)
-      throw Error("Circular asset path!" + loopcheck)
-    } else {
-      loopcheck.push(mod_route)
-      return resolveAssetsProtocol(mod_route, loopcheck)
+  if (Mods) {
+    const mod_route = Mods.getAssetRoute(asset_url)
+    if (mod_route) {
+      // logger.debug("[resolvA]", asset_url, "mod to", mod_route)
+      if (loopcheck.includes(mod_route)) {
+        loopcheck.push(mod_route)
+        throw Error("Circular asset path!" + loopcheck)
+      } else {
+        loopcheck.push(mod_route)
+        return resolveAssetsProtocol(mod_route, loopcheck)
+      }
     }
   }
 
