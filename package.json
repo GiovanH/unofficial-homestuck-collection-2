@@ -38,6 +38,7 @@
     "@fortawesome/fontawesome-svg-core": "^1.2.30",
     "@fortawesome/free-solid-svg-icons": "^5.14.0",
     "@fortawesome/vue-fontawesome": "^0.1.10",
+    "axios": "^1.4.0",
     "babel-loader": "^8.1.2",
     "chokidar": "^3.5.3",
     "electron-log": "^4.4.8",

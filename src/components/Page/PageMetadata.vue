@@ -22,39 +22,54 @@
           <td v-text="count" />
         </tr>
       </table>
-      <input @keydown.enter="submitNewTag"></input>
+      <label>New tag</label>
+      <input @keydown.enter="submitNewTag" />
+      <hr />
+      <GithubLogin />
     </div>
   </div>
 </template>
 
 <script>
+
+import { ipcRenderer } from 'electron'
+
+import GithubLogin from '@/components/UIElements/GithubLogin.vue'
+
 export default {
   name: 'Metadata',
   props: [
     'thisPage'
   ],
   components: {
+    GithubLogin
   },
   data: function() {
     return {
       DateTime: require('luxon').DateTime,
       taghost: "http://127.0.0.1:5000",
-      tags: {},
-      ourtags: [],
+    }
+  },
+  asyncComputed: {
+    tags: {
+      default: {},
+      async get () {
+        return await fetch(`${this.taghost}/${this.pageIdSlug}/tags`)
+          .then(r => r.json())
+      }
+    },
+    ourtags: {
+      default: [],
+      async get () {
+        return await fetch(`${this.taghost}/${this.pageIdSlug}/own`)
+          .then(r => r.json())
+      }
     }
   },
   methods: {
     updateTags() {
-      this.tags = {}
-      this.ourtags = []
-
-      fetch(`${this.taghost}/${this.pageIdSlug}/tags`)
-        .then(r => r.json())
-        .then(json => this.tags = json)
-
-      fetch(`${this.taghost}/${this.pageIdSlug}/own`)
-        .then(r => r.json())
-        .then(json => this.ourtags = json)
+      this.$asyncComputed.tags.update()
+      this.$asyncComputed.ourtags.update()
     },
     submitNewTag(event) {
       const value = event.target.value

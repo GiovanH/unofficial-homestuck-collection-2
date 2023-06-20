@@ -6,7 +6,7 @@ import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer'
 import fs from 'fs'
 
 import yaml from 'js-yaml'
-
+import axios from 'axios'
 import Resources from "./resources.js"
 import Mods from "./mods.js"
 
@@ -486,6 +486,12 @@ ipcMain.on('win-close-sync', (e) => {
   logger.warn("Got synchronous close event!")
   win.destroy()
   e.returnValue = true;
+})
+
+// Web requests
+ipcMain.handle('request', async (_, axios_request) => {
+  const result = await axios(axios_request)
+  return { data: result.data, status: result.status }
 })
 
 ipcMain.handle('save-file', async (event, payload) => {
