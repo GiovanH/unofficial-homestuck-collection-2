@@ -90,6 +90,7 @@ const TSO = () => import('@/components/Comics/tso.vue')
 const SNAPS = () => import('@/components/Comics/Snaps.vue')
 
 const TESTS = () => import('@/components/Extras/tests.vue')
+const BOORU = () => import('@/components/Extras/Booru.vue')
 
 const preload_components = [
     HOMEPAGE,
@@ -165,7 +166,8 @@ export default {
         TSO,
         SNAPS,
 
-        TESTS
+        TESTS,
+        BOORU
     },
     data() {
         return {

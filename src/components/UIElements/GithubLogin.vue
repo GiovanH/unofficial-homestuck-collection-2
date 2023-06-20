@@ -1,17 +1,25 @@
 <template>
-  <div>
-    <div class="inline-login">
-      <span v-if="token">Logged in as {{token}}</span>
-      <span v-else>Not authenticated</span>
+  <div class="container">
+    <!-- <span>
+      <a @click="oauth_code = 'FISH-0413'; token = undefined">1</a>
+      <a @click="token = 'fish'">2</a>
+      <a @click="token = oauth_code = undefined">3</a>
+    </span> -->
 
-      <div v-if="!token && !oauth_code">
-        <button @click="login_mock">Login with GitHub</button>
-      </div>
-      <div v-else-if="!token && oauth_code">
-        Copy code <pre>{{ oauth_code }}</pre> and paste <a :href="verification_uri">here</a>
-      </div>
-      <button v-else-if="token" @click="logout">Log Out</button>
+    <span v-if="token">Logged in as <b :alt="token">{{ user_name_friendly }}</b></span>
+    <span v-else>Not authenticated</span>
+
+    <div v-if="!token && !oauth_code">
+      <button @click="login">Login with GitHub</button>
     </div>
+    <template v-else-if="!token && oauth_code">
+      <span class="oauth-code">{{ oauth_code }}</span>
+      <span class="instructions">
+        Copy the above code and paste it <a :href="verification_uri">here</a>
+      </span>
+    </template>
+    <button v-else-if="token" @click="logout">Log Out</button>
+    <a class="footnote" :href="`https://github.com/settings/connections/applications/${client_id}`">Review or Revoke on Github.com</a>
   </div>
 </template>
 
@@ -51,6 +59,23 @@ export default {
   },
   mounted() {
     this.token = this.$localData.settings['githubToken']
+  },
+  computed: {
+    user_name_friendly() {
+      return this.user_info && this.user_info.login
+    }
+  },
+  asyncComputed: {
+    user_info: {
+      default: {},
+      async get () {
+        if (!this.token) return {}
+
+        return await fetch('https://api.github.com/user', {
+            headers: {Authorization: `Bearer ${this.token}`}}
+          ).then(r => r.json())
+      }
+    }
   },
   watch: {
     'token'(to, from) {
@@ -102,7 +127,7 @@ export default {
         });
         let validate = resp => paramsToDict(resp['data']).access_token;
 
-        poll(fetchReport, validate, interval * 1000).then((resp) => {
+        poll(fetchReport, validate, interval * 2000).then((resp) => {
           this.$logger.info(resp)
           const tokeninfo = Object.fromEntries(new URL('phony://?' + resp['data']).searchParams)
           this.$logger.info(tokeninfo)

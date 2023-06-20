@@ -3,7 +3,8 @@
     <NavBanner useCustomStyles="true" />
     <div class="pageFrame">
       <MediaEmbed v-if="logo" :url="logo" class="logo"/>
-      <div class="pageContent">
+      <slot v-if="noPageContent"></slot>
+      <div v-else class="pageContent">
         <slot></slot>
       </div>
     </div>
@@ -18,7 +19,7 @@ import MediaEmbed from '@/components/UIElements/MediaEmbed.vue'
 
 export default {
   name: 'GenericPage',
-  props: ['logo'],
+  props: ['logo', 'noPageContent'],
   components: {
     NavBanner, PageFooter, MediaEmbed
   }
@@ -44,6 +45,23 @@ export default {
       color: var(--page-links);
     }
 
+    //Small screen check
+    @media only screen and (max-width: 850px) {
+      &{
+        overflow-x: hidden;
+        height: max-content;
+        .navBanner {
+          max-width: 100%;
+        }
+        .pageFrame {
+          max-width: 100%;
+        }
+        ::v-deep div.footer {
+          max-width: 100%;
+        }
+      }
+    }
+
     .pageFrame {
       background: var(--page-pageFrame);
 
@@ -60,7 +78,6 @@ export default {
 
       .pageContent {
         background: var(--page-pageContent);
-
         max-width: 950px;
         min-width: 650px;
 
