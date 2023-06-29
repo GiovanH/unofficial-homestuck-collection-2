@@ -19,7 +19,7 @@
             :class="theme"
             :is="loadedResolvedComponent"
             :tab="tab" 
-            :routeParams="routeParams" 
+            :routeParams="passedRouteParams || routeParams"
             ref="page"
         />
         
@@ -35,6 +35,7 @@
 import Bookmarks from '@/components/UIElements/Bookmarks.vue'
 import MediaModal from '@/components/UIElements/MediaModal.vue'
 import JumpBox from '@/components/UIElements/JumpBox.vue'
+import GenericPage from '@/components/UIElements/GenericPage.vue'
 
 const FindBox = () => import('@/components/UIElements/FindBox.vue')
 
@@ -98,6 +99,8 @@ export default {
         'tabKey'
     ],
     components: {
+        GenericPage,
+
         Bookmarks,
         FindBox,
         JumpBox,
@@ -159,7 +162,8 @@ export default {
             gameOverThemeOverride: false, // Set by fullscreenFlash.vue
             modBrowserPages: {},
             lastContentTheme: undefined, // Cache the previous contentTheme for smoother transitions,
-            loadedResolvedComponent: undefined // Don't change component until it's loaded so the page "hangs" a second before changing, instead of blanking out.
+            loadedResolvedComponent: undefined, // Don't change component until it's loaded so the page "hangs" a second before changing, instead of blanking out.
+            passedRouteParams: undefined // Keep routeParams tied to the resolved component so templates don't get unexpected input (e.g. unexpected params from the next, as-of-yet unloaded page component)
         }
     },
     created(){
@@ -376,10 +380,10 @@ export default {
                 }
                 case "DECODE":
                     if (this.routeParams.mode) {
-                    if (!['morse','alternian','damaramegido'].includes(this.routeParams.mode)) component ='Error404' 
+                    if (!['morse','alternian','damaramegido'].includes(this.routeParams.mode)) component ='Error404'
                     if (
                         (this.routeParams.mode === 'alternian' && this.$pageIsSpoiler('003890')) ||
-                        (this.routeParams.mode === 'damaramegido' && this.$pageIsSpoiler('007298')) 
+                        (this.routeParams.mode === 'damaramegido' && this.$pageIsSpoiler('007298'))
                     ) component = 'Spoiler'
                     }
                     break
@@ -423,7 +427,7 @@ export default {
             let theme = 'default'
 
             const componentObj = this.componentOptions
-            if (!componentObj) {
+            if (!componentObj || (this.resolveComponent != this.loadedResolvedComponent)) {
                 return this.lastContentTheme || "default"
             }
 
@@ -431,7 +435,11 @@ export default {
 
             if (componentObj && componentObj.theme) {
                 const context = this
-                theme = componentObj.theme(context) || theme
+                try {
+                    theme = componentObj.theme(context) || theme
+                } catch (e) {
+                    this.$logger.error("Error in theme function", e)
+                }
             }
 
             return theme
@@ -464,9 +472,10 @@ export default {
     methods: {
         reload() {
             const u = this.tab.url
-            this.tab.url = "blank"
+            const component = this.loadedResolvedComponent
+            this.loadedResolvedComponent = "GenericPage"
             this.$nextTick(function () {
-                this.tab.url = u
+                this.loadedResolvedComponent = component
             })
         },
         leftKeyUp(e) {
@@ -541,13 +550,18 @@ export default {
 
             if (componentObj.title) {
                 const context = this
-                title = componentObj.title(context)
+                try {
+                    title = componentObj.title(context)
+                } catch (e) {
+                    this.$logger.error("Error in theme function", e)
+                }
             } else {
-                this.$logger.warn("Missing title function for", componentObj, componentObj.title)
+                this.$logger.warn("Missing title function for", componentObj.name, componentObj.title)
                 title = this.tab.url
             }
 
-            this.$localData.root.TABS_SET_TITLE(this.tab.key, title)
+            if (title)
+                this.$localData.root.TABS_SET_TITLE(this.tab.key, title)
         }
     },
     updated(){
@@ -568,6 +582,7 @@ export default {
         },
         'loadedResolvedComponent'(to, from) {
             this.setTitle()
+            this.passedRouteParams = this.routeParams
         },
         'contentTheme'(to, from) {
             this.lastContentTheme = to
@@ -575,6 +590,12 @@ export default {
         'componentOptions'(to, from) {
             // Promise finished, we've loaded the current resolved component.
             this.loadedResolvedComponent = this.resolveComponent
+        },
+        'routeParams'(to, from) {
+            // If the route params change without the component changing, update the component too. Otherwise wait for the component.
+            if (this.resolveComponent == this.loadedResolvedComponent) {
+                this.passedRouteParams = this.routeParams
+            }
         }
     },
     mounted(){
