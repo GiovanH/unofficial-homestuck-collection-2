@@ -59,6 +59,8 @@ const DEFAULT_SETTINGS = {
   pixelScaling: true,
   mspaMode: false,
   bandcampEmbed: true,
+  extraMetadata: false,
+
   allowSysUpdateNotifs: true,
   devMode: false,
   enableHardwareAcceleration: false,

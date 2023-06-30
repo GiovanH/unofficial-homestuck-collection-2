@@ -6,8 +6,11 @@
       <a @click="token = oauth_code = undefined">3</a>
     </span> -->
 
-    <span v-if="token">Logged in as <b :alt="token">{{ user_name_friendly }}</b></span>
-    <span v-else>Not authenticated</span>
+    <div v-if="token">
+      <p>Logged in as <b :alt="token">{{ user_name_friendly }}</b></p>
+      <p style="text-align: center" class="token">{{ user_info.id }}</p>
+    </div>
+    <p v-else>Not authenticated</p>
 
     <div v-if="!token && !oauth_code">
       <button @click="login">Login with GitHub</button>
@@ -19,13 +22,13 @@
       </span>
     </template>
     <button v-else-if="token" @click="logout">Log Out</button>
-    <a class="footnote" :href="`https://github.com/settings/connections/applications/${client_id}`">Review or Revoke on Github.com</a>
+    <!-- <a class="footnote" :href="`https://github.com/settings/connections/applications/${client_id}`">Review or Revoke on Github.com</a> -->
   </div>
 </template>
 
 <script>
 
-import { ipcRenderer } from 'electron'
+const ipcRenderer = (require('electron').ipcRenderer)
 
 const wait = function (ms = 1000) {
   return new Promise(resolve => {

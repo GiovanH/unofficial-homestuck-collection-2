@@ -13,18 +13,18 @@
       </time>
     </div>
     <div class="metadata tagbox" style="margin-top: 1em;">
-      <button @click="$asyncComputed.booru_token.update">{{booru_token || 'None'}}</button>
+      <!-- <button @click="booru.$asyncComputed.booru_token.update">{{booru.booru_token || 'None'}}</button> -->
       <table>
-        <tr><th v-if="booru_token" /><th>Tag</th><th>#</th></tr>
+        <tr><th v-if="booru.is_authenticated" /><th>Tag</th><th>#</th></tr>
         <tr v-for="vote_count, tag in tags">
-          <td class="link" :title="ourtags" v-if="booru_token && ourtags.includes(tag)" @click="removeVoteFor(tag)">-</td>
-          <td class="link" :title="ourtags"  v-else-if="booru_token" @click="doVoteFor(tag)">+</td>
+          <td class="link" :title="our_tags" v-if="booru.is_authenticated && our_tags && our_tags.includes(tag)" @click="removeVoteFor(tag)">-</td>
+          <td class="link" :title="our_tags"  v-else-if="booru.is_authenticated" @click="doVoteFor(tag)">+</td>
           <td v-text="tag" />
           <td v-text="vote_count" />
         </tr>
       </table>
       <hr />
-      <template v-if="booru_token">
+      <template v-if="booru.is_authenticated">
         <label>New tag</label>
         <vue-simple-suggest
             v-model="new_tag_input_value"
@@ -56,8 +56,13 @@
 <script>
 
 import VueSimpleSuggest from 'vue-simple-suggest'
+import BooruApi from '@/booruapi.js'
+
+const getApi = BooruApi.getApi
+
 export default {
   name: 'Metadata',
+  // mixins: [ BooruApi ],
   props: [
     'thisPage'
   ],
@@ -67,61 +72,36 @@ export default {
   data: function() {
     return {
       DateTime: require('luxon').DateTime,
-      taghost: "http://127.0.0.1:5000",
+      // taghost: "http://127.0.0.1:5000",
       new_tag_input_value: "",
-      ad_hoc_suggestions: []
+      ad_hoc_suggestions: [],
+      booru: getApi()
     }
   },
   asyncComputed: {
-    booru_token: {
-      default: undefined,
-      async get () {
-        const gh_token = this.$localData.settings['githubToken']
-        if (gh_token) {
-          const resp = await fetch(`${this.taghost}/auth`, {
-            method: "POST",
-            credentials: "include",
-            body: JSON.stringify({'gh_token': gh_token})
-          })
-          // this.$logger.info(await resp.text())
-          return (await resp.json()).value
-        } else {
-          this.$logger.error("Can't attempt to get a booru_token without a gh_token")
-          return undefined
-        }
-      }
-    },
     all_tags: {
       default: [],
       async get () {
-        return await fetch(`${this.taghost}/tags/all`)
-          .then(r => r.json())
+        return await this.booru.getAllTags()
       }
     },
     tags: {
       default: {},
       async get () {
-        return await fetch(`${this.taghost}/page/${this.pageIdSlug}/tags`)
-          .then(r => r.json())
+        return await this.booru.getPageTags(this.pageId)
       }
     },
-    ourtags: {
+    our_tags: {
       default: [],
       async get () {
-        if (this.$localData.settings['githubToken'] && this.booru_token) {
-          const resp = await fetch(`${this.taghost}/page/${this.pageIdSlug}/own`,
-              {credentials: "include",}
-            )
-          if (resp.status == 401) {
-            this.$nextTick(() => {
-              this.$asyncComputed.booru_token.update()
-            })
-          } else if (resp.status == 200) {
-            return await resp.json()
-          } else {
-            this.$logger.error(await resp.json())
+        if (this.booru.booru_token) {
+
+          try {
+            return await this.booru.getOurTagsOfPage(this.pageId)
+          } catch (e) {
+            this.$logger.error(e)
+            return []
           }
-          return [] // Error
         }
         return [] // Not logged in
       }
@@ -130,48 +110,44 @@ export default {
   methods: {
     updateTags() {
       this.$asyncComputed.tags.update()
-      this.$asyncComputed.ourtags.update()
+      this.$asyncComputed.our_tags.update()
     },
     onSuggestSelect(event){
       this.new_tag_input_value = event.value
       this.$refs.suggest.hideList()
-      document.activeElement.blur()
-      // this.submitNewTag(event)
+      this.$nextTick(() => this.$refs.input.select())
     },
     submitNewTag(event) {
-      const value = event.target.value
-      event.target.value = ""
-      this.new_tag_input_value = ""
-      this.doVoteFor(value)
+      if (!this.$refs.suggest.hovered) {
+        const value = event.target.value
+        event.target.value = ""
+        this.new_tag_input_value = ""
+        this.doVoteFor(value)
+      }
     },
     doVoteFor(value) {
-      if (this.ourtags.includes(value)) {
+      if (this.our_tags.includes(value)) {
         this.$logger.error("Can't vote twice for", value)
         return
       }
 
       this.$logger.info("Voting", value)
-      this.ad_hoc_suggestions.push(value)
+      this.booru.doVoteFor(this.pageId, value).then(_ => {
+        this.updateTags()
+      })
 
-      fetch(`${this.taghost}/page/${this.pageIdSlug}/vote/${value}`,
-          {credentials: "include",}
-        ).then(r => {
-          this.updateTags()
-        })
+      this.ad_hoc_suggestions.push(value)
     },
     removeVoteFor(value) {
-      if (!this.ourtags.includes(value)) {
+      if (!this.our_tags.includes(value)) {
         this.$logger.error("No vote to delete for", value)
         return
       }
 
       this.$logger.info("UnVoting", value)
-
-      fetch(`${this.taghost}/page/${this.pageIdSlug}/unvote/${value}`,
-          {credentials: "include",}
-        ).then(r => {
-          this.updateTags()
-        })
+      this.booru.doRemoveVoteFor(this.pageId, value).then(_ => {
+        this.updateTags()
+      })
     }
   },
   watch: {
@@ -187,13 +163,10 @@ export default {
       return `${this.thisPage.storyId}/${this.thisPage.pageId}`
     },
     tagSuggestions() {
-      return [
+      return [...new Set([
         ...this.all_tags.map(t => {return {value: t.tag}}),
         ...this.ad_hoc_suggestions
-      ]
-    },
-    pageIdSlug() {
-      return this.pageId.replace('/', '-')
+      ])]
     },
     datetime() {
       if (!this.thisPage.timestamp) {

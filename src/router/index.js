@@ -326,7 +326,21 @@ const routes = [
         path: ':page',
       },
     ]
-  }
+  },
+  {
+    path: '/booru/',
+    props: true,
+    children: [
+      {
+        path: '/booru/tag/:query_tag',
+        props: true
+      },
+      // {
+      //   path: '/booru/page/:pagequery',
+      //   props: true
+      // },
+    ]
+  },
 ]
 
 const router = new VueRouter({

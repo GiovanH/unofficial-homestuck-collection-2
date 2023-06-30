@@ -4,7 +4,7 @@
     <Firefly :tab="tab" v-if="fireflies"/>
     <NavBanner useCustomStyles="true" />
     <div class="pageFrame">
-      <Metadata v-if="showMetadata == true" :thisPage="thisPage" />
+      <Metadata v-if="$localData.settings.extraMetadata" :thisPage="thisPage" />
       <div class="pageContent">
         <Footnotes :pageId="thisPage.pageId" preface class="footnotesContainer"/>
         <div class="mediaContent">
@@ -57,8 +57,7 @@ export default {
   data: function() {
     return {
       preload: [],
-      retcon6passwordPages: ["009058", "009109", "009135", "009150", "009188", "009204", "009222", "009263"],
-      showMetadata: false
+      retcon6passwordPages: ["009058", "009109", "009135", "009150", "009188", "009204", "009222", "009263"]
     }
   },
   theme: function(ctx) {
