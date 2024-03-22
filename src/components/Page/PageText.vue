@@ -52,7 +52,32 @@ export default {
       ]
     }
   },
+  asyncComputed: {
+    async translatedContent() {
+      if (!this.content) return this.content
+
+      this.$logger.info("Translating", this.content)
+      const res = await fetch("http://127.0.0.1:5000/translate", {
+        method: "POST",
+        body: JSON.stringify({
+          q: this.content,
+          source: "en",
+          target: "es",
+          format: "html"
+        }),
+        headers: { "Content-Type": "application/json" }
+      })
+
+      const result_text = (await res.json()).translatedText
+      this.$logger.info("Translated to", result_text)
+
+      return result_text
+    }
+  },
   computed: {
+    displayContent() {
+      return this.translatedContent || this.content
+    },
     fontFamily() {
       const result = []
       if (this.$localData.settings.textOverride.fontFamily) {
@@ -68,7 +93,7 @@ export default {
       return result
     },
     buttonContent() {
-      return this.content.replace(/\|.*?\| *\<br ?\/?\>/, '')
+      return this.displayContent.replace(/\|.*?\| *\<br ?\/?\>/, '')
     },
     theme(){
       return this.forcetheme || this.$root.tabTheme.rendered
@@ -118,7 +143,7 @@ export default {
       return state + text.toLowerCase()
     },
     filteredPrattle() {
-      let result = this.content
+      let result = this.displayContent
       if (/<img src="/.test(result)){
         this.fullwidthImages.forEach(img => {
           result = result.replace(`${img}" `, `${img}" class='fullWidth'`)
