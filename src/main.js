@@ -8,11 +8,12 @@ import Memoization from '@/memoization.js'
 
 import Mods from "./mods.js"
 import Resources from "./resources.js"
+import HSMusic from '@/hsmusic.js'
 
 import { library } from '@fortawesome/fontawesome-svg-core'
 import {
   faExternalLinkAlt, faChevronUp, faChevronRight, faChevronDown, faChevronLeft,
-  faSearch, faEdit, faSave, faTrash, faTimes, faPlus, faPen, faMusic, faLock, faUnlock,
+  faSearch, faEdit, faSave, faTrash, faTimes, faPlus, faPen, faMusic, faLock,
   faRedo, faStar, faRandom, faMousePointer, faBookmark, faTerminal, faMapPin
 } from '@fortawesome/free-solid-svg-icons'
 
@@ -21,7 +22,7 @@ const importFontAwesomeIconObj = import('@fortawesome/vue-fontawesome')
 
 library.add([
   faExternalLinkAlt, faChevronUp, faChevronRight, faChevronDown, faChevronLeft, 
-  faSearch, faEdit, faSave, faTrash, faTimes, faPlus, faPen, faMusic, faLock, faUnlock,
+  faSearch, faEdit, faSave, faTrash, faTimes, faPlus, faPen, faMusic, faLock, 
   faRedo, faStar, faRandom, faMousePointer, faBookmark, faTerminal, faMapPin
 ])
 
@@ -32,16 +33,15 @@ window.isWebApp = (window.isWebApp || false)
 const ipcRenderer = require('electron').ipcRenderer
 
 // Must init resources first.
-/* eslint-disable no-redeclare */
-var shell, log, port, appVersion, store
+var shell, store, log, port, appVersion
 if (!window.isWebApp) {
   var {shell} = require('electron')
 
   const Store = require('electron-store')
   store = new Store()
 
-  log = require('electron-log')
-  log.transports.console.format = '[{level}] {text}'
+  log = require('electron-log');
+  log.transports.console.format = '[{level}] {text}';
 
   var {port, appVersion} = ipcRenderer.sendSync('STARTUP_GET_INFO')
 
@@ -57,9 +57,6 @@ Number.prototype.pad = function(size) {
   return this.toString().padStart(size || 2, '0')
 }
 
-function regExpEscape(literal_string) {
-    return literal_string.replace(/[-[\]{}()*+!<=:?.\/\\^$|#\s,]/g, '\\$&')
-}
 
 const app_domain = window.location.host // (window.isWebApp ? window.webAppDomain : 'localhost:8080')
 
@@ -78,19 +75,19 @@ Vue.use(localData) // Initializes and loads when Vue installs it
 promises_loading.push((async function() {
   const { FontAwesomeIcon } = await importFontAwesomeIconObj
   Vue.component('fa-icon', FontAwesomeIcon)
-})())
+})());
 
 // Mixin asynccomputed
 promises_loading.push((async function() {
   const AsyncComputed = await importAsyncComputed
   Vue.use(AsyncComputed)
-})())
+})());
 
 // Mixin mod mixins
 promises_loading.push((async function() {
   const mixins = await Mods.getMixinsAsync()
   mixins.forEach((m) => Vue.mixin(m))
-})())
+})());
 
 Vue.mixin(Memoization.mixin)
 
@@ -102,9 +99,10 @@ Vue.mixin({
     }
   },
   computed: {
+    $musicker() {return this.$root.musicker},
     $archive() {return this.$root.archive},
     $isNewReader() {
-      return Boolean(this.$newReaderCurrent && this.$localData.settings.newReader.limit)
+      return this.$newReaderCurrent && this.$localData.settings.newReader.limit
     },
     $newReaderCurrent() {
       return this.$localData.settings.newReader.current
@@ -127,7 +125,7 @@ Vue.mixin({
         if (vizNums) resolvedUrl = `/${vizNums.s}/${vizNums.p}`
       } else if (this.$localData.settings.mspaMode) {
         if (base == 'mspa') {
-          const p_padded = route.params.p.padStart(6, '0')
+          let p_padded = route.params.p.padStart(6, '0')
           if (p_padded in this.$archive.mspa.story) resolvedUrl =  `/mspa/${p_padded}` 
         } else if (this.$isVizBase(base)) {
           // Route /homestuck/# to /mspa/#
@@ -138,42 +136,33 @@ Vue.mixin({
       return resolvedUrl
     },
     $openModal(to) {
-      this.$root.$children[0].$refs[this.$localData.tabData.activeTabKey][0].openModal(to)
+      this.$root.$children[0].$refs[this.$localData.tabData.activeTabKey][0].$refs.modal.open(to)
     },
     $openLink(url, auxClick = false) {
-      // Open a link. Could be intra-app, external, or an assets:// uri
-      //
-      const re_local = new RegExp(`^(http://|https://)?(${regExpEscape(app_domain)}|app:\/\/\\.(index)?)`)
-      const re_local_index = new RegExp(`^(http://|https://)?(${regExpEscape(app_domain)}|app:\/\/\\.\/)index\\.html\\??`)
+      const re_local = new RegExp(`(${app_domain}|app:\/\/\\.(index)?)`)
+      const re_local_index = new RegExp(`(${app_domain}|app:\/\/\\.\/)index\\.html\\??`)
       // const re_local_asset = new RegExp(`(http:\/\/127.0.0.1:${port}\/|assets:\/\/)`)
 
-      // Normalize implied proto://./index.html links back to proto://./
       const url_str = url.replace(re_local_index, '$1')
       const urlObject = new URL(url_str)
 
-      function _openExternal(to_) {
-        if (!window.isWebApp) {
-          shell.openExternal(to_)
-        } else {
-          window.open(Resources.resolveURL(to_), '_blank').focus()
-        }
-      }
-
-      // If asset, open in modal or externally as appropriate
-      if (urlObject.protocol == "assets:") {
-        const to_ = Resources.resolveAssetsProtocol(url)
-        if (!/\.(html|pdf)$/i.test(url)) {
-          this.$openModal(to_)
-        } else {
-          _openExternal(to_)
-        }
+      if (urlObject.protocol == "assets:" && !/\.(html|pdf)$/i.test(url)) {
+        this.$openModal(Resources.resolveAssetsProtocol(url))
         return
       }
       
-      // Else, tests on a real link
+      // Else, tests
       let to = (/mspaintadventures/.test(urlObject.href) && !!urlObject.search) ? urlObject.href : urlObject.pathname
       to = to.replace(/.*mspaintadventures.com\/(\w*\.php)?\?s=(\w*)&p=(\w*)/, "/mspa/$3")
              .replace(/.*mspaintadventures.com\/\?s=(\w*)/, "/mspa/$1")
+
+      function _openExternal(to_) {
+        if (!isWebApp) {
+          shell.openExternal(to_)
+        } else {
+          window.open(Resources.resolveURL(to_), '_blank').focus();
+        }
+      }
 
       if (!re_local.test(urlObject.origin)) {
         // Link is external
@@ -194,7 +183,7 @@ Vue.mixin({
     },
     $getResourceURL(url) {
       const resource_url = Resources.getResourceURL(url)
-      if (window.isWebApp) {
+      if (isWebApp) {
         // simulate webRequest redirection here
         return Resources.resolveURL(url)
       } else {
@@ -272,7 +261,6 @@ Vue.mixin({
         let nextLimit
 
         // Some pages don't directly link to the next page. These are manual exceptions to catch them up to speed
-        /* eslint-disable brace-style */
         if (!isSetupMode) {
           // Calculate nextLimit
           var offByOnePages = this.$archive.tweaks.offByOnePages
@@ -291,7 +279,7 @@ Vue.mixin({
           else if ('006369' <= thisPageId && thisPageId <= '006468') nextLimit = '006469' // Roxy+Dirk
 
           // A6A5A1x2 COMBO
-          else if ('007688' <= thisPageId && thisPageId <= '007825') {
+          else if ('007688' <= thisPageId && thisPageId <='007825') {
             // Sets the next page an extra step ahead to account for the x2 shittery
             const isLeftPage = !(thisPageId % 2)
             const page = this.$archive.mspa.story[thisPageId]
@@ -443,7 +431,7 @@ Vue.mixin({
         else if (ref == 'one-year-older') date = this.$archive.mspa.story['007162'].timestamp // Just after Caliborn: Enter, before openbound 1
         else if (ref == 'cherubim') date = this.$archive.mspa.story['007882'].timestamp // After Interfishin, right when Caliborn/Calliope expodump begins
 
-        else date = new Date(this.$archive.music.albums[ref].date).getTime() / 1000
+        else date = new Date(this.$archive.music.albums[ref].date).getTime()/1000
         this.$logger.debug(ref, this.$archive.mspa.story['006716'].timestamp)
         return date > this.$archive.mspa.story[this.$newReaderCurrent].timestamp
       } else return false
@@ -451,7 +439,7 @@ Vue.mixin({
   } 
 })
 
-window.Vue = Vue
+window.Vue = Vue;
 
 // Resolve all promises, then make app
 Promise.all(promises_loading).then(_ => {
@@ -472,13 +460,20 @@ Promise.all(promises_loading).then(_ => {
     },
     computed: {
       // Easy access
-      app(){ return this.$refs.App }
+      app(){ return this.$refs.App },
+      // Only store archive-dependent state once
+      musicker() {
+        return new HSMusic.Musicker(
+          this.$archive.extras.hsmusic,
+          this.$archive.music
+        )
+      },
     },
     asyncComputed: {
       $modChoices: {
         default: {},
         get: Mods.getModChoicesAsync
-      }
+      },
     },
     router,
     render: function (h) { return h(App, {ref: 'App'}) },
@@ -486,7 +481,7 @@ Promise.all(promises_loading).then(_ => {
       '$localData.settings.devMode'(to, from){
         if (log.transports) {
           const is_dev = to
-          log.transports.console.level = (is_dev ? "silly" : "info")
+          log.transports.console.level = (is_dev ? "silly" : "info");
           this.$logger.silly("Verbose log message for devs")
           this.$logger.info("Log message for everybody")
         }
@@ -495,6 +490,7 @@ Promise.all(promises_loading).then(_ => {
     }
   }).$mount('#app')
 })
+
 
 // Even though we cancel the auxclick, reallly *really* cancel mouse navigation.
 window.addEventListener("mouseup", (e) => {
@@ -508,5 +504,11 @@ window.addEventListener("mouseup", (e) => {
 window.Resources = Resources
 window.Mods = Mods
 window.doFullRouteCheck = Mods.doFullRouteCheck
+
+window.trace = function(fn, arg) {
+  const ret = fn(arg)
+  console.log(fn, arg, ret)
+  return ret
+}
 
 // window.onbeforeunload = () => "please.... stay";
