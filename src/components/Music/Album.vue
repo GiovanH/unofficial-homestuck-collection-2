@@ -1,41 +1,76 @@
 <template>
-  <div class="albumPage">
+  <div class="albumPage" v-if="$albumIsSpoiler(album)">
+    <div class="nameSection">
+      <h2 class="trackTitle">Spoiler!</h2>
+    </div>
+    <div class="info">
+      Keep reading to unlock.
+    </div>
+  </div>
+  <div class="albumPage" v-else>
 
     <div class="nameSection">
       <h2 class="trackTitle">{{album.name}}</h2>
-      <h3 class="byArtist">by <span v-html="linkAndJoinComposers" /></h3>
-      <h3 class="byArtist" v-if="album.albumCoverArtists && album.albumCoverArtists[0].who != 'homestuck'">cover art by <span v-html="linkAndJoinCoverArtists" /></h3>
+      <h3 class="byArtist">
+        by
+        <ol class="nameList">
+          <li v-for="name, i in album.artist_names" :key="i" >
+            <a :href="$musicker.getArtistByName(name).uhcLink" v-text="name"/>
+          </li>
+        </ol>
+      </h3>
+      <h3 class="byArtist" v-if="album.cover_artist_names">
+        cover art by
+        <ol class="nameList">
+          <li v-for="name, i in album.cover_artist_names" :key="i">
+            <a :href="$musicker.getArtistByName(name).uhcLink" v-text="name"/>
+          </li>
+        </ol>
+      </h3>
     </div>
 
     <div class="middleColumn">
-      <a :href="`/archive/music/${album.directory}/cover.jpg`">
-        <Media :url="`/archive/music/${album.directory}/cover.jpg`" />
+      <a :href="album.artpath">
+        <Media :url="album.artpath" />
       </a>
     </div>
 
     <div class="info">    
-      <p class="links" v-if="linkAndJoinExternalMusic">Listen on <span v-html="linkAndJoinExternalMusic" /></p>
+      <p class="links" v-if="album.external_links">
+        Listen at
+        <ol class="linkList">
+          <li v-for="href, i in album.external_links" :key="i" >
+            <a :href="href" v-text="getHostname(href)"/>
+          </li>
+        </ol>
+      </p>
 
-      <p class="date" v-if="album.date">Released {{getUTCDate(album.date)}}</p>
+      <p class="date" v-if="album.date">Released {{album.date}}</p>
 
-      <div class="albumGroup" v-if="albumGroups">
-        <div class="albumGroup"  v-for="group in Object.keys(albumGroups)">
-          <p><em>{{groupIsSpoiler(albumGroups[group]) ? '??????' : group}}:</em></p>
+      <!-- v-if="album.uses_sections" -->
+      <div class="albumGroup">
+        <div class="albumGroup" v-for="[section_name, track_list] in Object.entries(album.track_sections)" :key="section_name">
+          <p v-if="section_name != 'Unsorted'">
+            <em>{{section_name}}:</em>
+          </p>
           <ol class="groupList">
-            <li v-for="track in albumGroups[group]" v-html="track" />
+            <li v-for="track in track_list" :key="track.directory">
+              <a :href="track.uhcLink" v-text="track.name" />
+            </li>
           </ol>
           <br>
         </div>
       </div>
 
-      <ol v-else>
-        <li v-for="track in album.tracks" v-html="linkTrack(track)" />
-      </ol>
-
       <div class="bonusItems" v-if="album.bonus && album.bonus.length > 0">Bonus items included with <i>{{album.name}}</i>:
         <ul>
-          <li v-for="bonus in album.bonus" >
-            <a :href="`/archive/music/${album.directory}/${bonus}`" v-text="bonus" />
+          <li v-for="bonus, j in album.bonus" :key="j">
+            {{bonus['Title']}}:
+            <ol class="nameList">
+              <li v-for="file, i in bonus['Files']" :key="i">
+                <a :href="`/archive/music/${album.directory}/${file}`" v-text="file"/>
+              </li>
+            </ol>
           </li>
         </ul>
       </div>
@@ -43,12 +78,13 @@
 
     <div v-if="album.commentary" class="commentaryContainer">
       <p class="commentaryHeader">Album Commentary:</p>
-      <p class="commentary" ref="commentary" v-if="!$isNewReader" v-html="album.commentary.replace(/\n/g, '<br><br>')" />
+      <p class="commentary" ref="commentary" v-if="!$isNewReader" v-html="album.commentary.replace(/\n/g, '<br>')" />
       <p class="commentary lock" ref="commentary" v-else>
         <span class="lock">Finish Homestuck to unlock inline commentary!</span>
       </p>
     </div>
 
+    <pre v-html="album" />
   </div>
 </template>
 
@@ -70,73 +106,13 @@ export default {
     }
   },
   computed: {
-    albumGroups() {
-      if (this.album.usesGroups) {
-        const groups = {}
-        this.album.tracks.forEach(track => {
-          const group = this.$archive.music.tracks[track].group || "Tracks without a group"
-          if (!groups[group]) groups[group] = []
-          groups[group].push(this.linkTrack(track)) 
-        })
-        return groups
-      } else return false
-    },
-    linkAndJoinComposers() {
-      return this.linkAndJoinArtists(this.album.artists || ['homestuck'])
-    },
-    linkAndJoinCoverArtists() {
-      return this.linkAndJoinArtists(this.album.albumCoverArtists || [])
-    },
-    linkAndJoinExternalMusic() {
-      if (this.album.urls) {
-        let sources = this.album.urls.map(url =>`<a href="${url}">${
-          url.includes('bandcamp.com') ? 'Bandcamp' :
-          url.includes('youtu') ? (url.includes('list=') ? 'YouTube (Playlist)' : 'YouTube (Full Album)') :
-          url.includes('soundcloud') ? 'SoundCloud' :
-          url.includes('tumblr.com') ? 'Tumblr' :
-          url.includes('twitter.com') ? 'Twitter' :
-          url.includes('deviantart.com') ? 'DeviantArt' :
-          url.includes('wikipedia.org') ? 'Wikipedia' : url}</a>`)
-        return (new Intl.ListFormat('en', { style: 'long', type: 'disjunction' }).format(sources))
-      }
-      else return false
-    }
   },
   methods: {
+    getHostname(href) {
+      return (new URL(href)).hostname
+    },
     groupIsSpoiler(group) {
       return this.$isNewReader && !group.find(track => !(track).includes('>??????<'))
-    },
-    linkTrack(dir) {
-      if (this.$trackIsSpoiler(dir)) return '<span style="color:#000000">??????</span>'
-      if (dir in this.$archive.music.tracks) {
-        const track = this.$archive.music.tracks[dir]
-        const href = `/music/track/${track.directory}`
-        const duration = track.duration ? `<span class="duration">${this.secondsToMinutes(track.duration)}</span>` : ''
-        const html = `<a href="${href}">${track.name}</a>${duration}`
-        return html
-      } else return dir 
-    },
-    linkAndJoinArtists(array) {
-      const artists = array.map(artist => {
-        if (typeof artist == 'string') return `<a href="/music/artist/${artist}">${this.$archive.music.artists[artist].name}</a>`
-        else return `<a href="/music/artist/${artist.who}">${this.$archive.music.artists[artist.who].name}</a>${artist.what ? ` (${artist.what})` : ''}`
-      })
-      return (new Intl.ListFormat('en', { style: 'long', type: 'conjunction' }).format(artists))
-    },
-    secondsToMinutes(time) {
-      if (Number.isInteger(time)){
-        const m = Math.floor(time % 3600 / 60)
-        const s = Math.floor(time % 3600 % 60)
-
-        var mDisplay = m.toString().padStart(2, '0')
-        var sDisplay = s.toString().padStart(2, '0')
-        return mDisplay + ':' + sDisplay
-      } else return ''
-    },
-    getUTCDate(date){
-      const d = new Date(date)
-      const month = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][d.getUTCMonth()]
-      return `${month} ${d.getUTCDate()}, ${d.getUTCFullYear()}`
     },
     filterCommentaryLinksAndImages(){
       return this.filterLinksAndImages(this.$refs.commentary)
@@ -168,6 +144,32 @@ export default {
     }
   }
 
+  .nameList, .linkList {
+    display: inline;
+    li { display: inline; }
+    li + li {
+      &:before { content: ", "; }
+    }
+  }
+
+  .nameList {
+    li + li {
+      &:last-of-type:before { content: ", and "; }
+    }
+    li:first-of-type + li {
+      &:last-of-type:before { content: " and "; }
+    }
+  }
+  .linkList {
+    li + li {
+      &:last-of-type:before { content: ", or "; }
+    }
+    li:first-of-type + li {
+      // Odd spacing here with the external link icon
+      &:last-of-type:before { content: "or "; }
+    }
+  }
+
   .middleColumn {
     float: right;
     padding-bottom: 20px;
@@ -188,10 +190,10 @@ export default {
     > ol, > ul, > div, > p, > iframe {
       margin-top: 16px;
     }
-
+    
     ol, ul {
       list-style-position: inside;
-      color: var(--page-links-visited);;
+      // color: var(--page-links-visited);;
       &.groupList {
         margin-left: 20px;
       }
@@ -241,3 +243,4 @@ export default {
   }
 }
 </style>
+

@@ -417,6 +417,8 @@ Vue.mixin({
       } else return false
     },
     $albumIsSpoiler(ref) {
+      // FIXME: Implement for hsmusic
+      return false
       if (this.$isNewReader && ref in this.$archive.music.albums && this.$archive.music.albums[ref].date) {
         // It's a spoiler if it belongs to an album with a more recent timestamp than the current page
         let date

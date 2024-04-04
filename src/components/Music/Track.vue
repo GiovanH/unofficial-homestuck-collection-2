@@ -156,15 +156,15 @@ export default {
     // thnks florrie 👍
     joinNoOxford(array, plural = 'and') {
       if (array.length === 0) {
-          return ''
+        return ''
       }
 
       if (array.length === 1) {
-          return array[0]
+        return array[0]
       }
 
       if (array.length === 2) {
-          return `${array[0]} ${plural} ${array[1]}`
+        return `${array[0]} ${plural} ${array[1]}`
       }
 
       return `${array.slice(0, -1).join(', ')} ${plural} ${array[array.length - 1]}`

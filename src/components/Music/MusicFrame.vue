@@ -74,13 +74,21 @@ export default {
   computed: {
     thisAlbum() {
       // let mode // unused?
-      let key = this.routeParams.id || undefined
-      return (this.routeParams.mode == 'album' && key in this.$archive.music.albums) ? this.$archive.music.albums[key] : undefined
+      const key = this.routeParams.id || undefined
+
+      if (this.routeParams.mode == 'album') {
+        return this.$musicker.getAlbumBySlug(key)
+      } else {
+        return undefined
+      }
+      // return (this.routeParams.mode == 'album' && key in this.$archive.music.albums) ? this.$archive.music.albums[key] : undefined
     },
     thisTrack() {
-      let key = this.routeParams.id || undefined
+      const key = this.routeParams.id || undefined
       if (this.routeParams.mode == 'track') {
         return this.$musicker.getTrackBySlug(key)
+      } else {
+        return undefined
       }
       // return (this.routeParams.mode == 'track' && key in this.$archive.music.tracks) ? this.$archive.music.tracks[key] : undefined
     },

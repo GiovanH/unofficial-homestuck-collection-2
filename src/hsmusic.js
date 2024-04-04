@@ -68,6 +68,15 @@ class Thing {
     this.def = def
   }
 
+  get uhcLink() {
+    if (this.index_name)
+      return `/music/${this.index_name}/${this.directory}`
+    else {
+      throw Error("index_name not defined on object", this)
+      return undefined
+    }
+  }
+
   get directory() {
     return this.def['Directory'] || getKebabCase(this.name)
   }
@@ -79,9 +88,8 @@ class Artist extends Thing {
 
     this.name = def['Artist']
   }
-
-  get uhcLink() { return `/music/artist/${this.directory}` }
 }
+Artist.prototype.index_name = 'artist'
 
 class Album extends Thing {
   constructor(def) {
@@ -92,12 +100,15 @@ class Album extends Thing {
 
     this.name = def.header['Album']
     this.artist_names = def.header['Artists']
+    this.cover_artist_names = def.header['Cover Artists']
     this.date = def.header['Date']
+    this.external_links = def.header['URLs']
+    this.bonus = def.header['Additional Files']
   }
 
   get trackdefs() { return Object.values(this.sections).flat() }
 
-  get uhcLink() { return `/music/album/${this.directory}` }
+  get uses_sections() { return (Object.keys(this.sections).length > 1) }
 
   get artpath() {
     if (this.def['Cover Artists']) {
@@ -109,6 +120,7 @@ class Album extends Thing {
     }
   }
 }
+Album.prototype.index_name = 'album'
 
 class Track extends Thing {
   constructor(def, album) {
@@ -124,12 +136,6 @@ class Track extends Thing {
     return this.def['Artists'] || this.album.artist_names
   }
 
-  get directory() {
-    return this.def['Directory'] || getKebabCase(this.name)
-  }
-
-  get uhcLink() { return `/music/track/${this.directory}` }
-
   get artpath() {
     if (this.def['Cover Artists']) {
       // Track has art
@@ -143,6 +149,7 @@ class Track extends Thing {
     }
   }
 }
+Track.prototype.index_name = 'track'
 
 class Musicker {
   constructor(hsmusic, archive_music) {
@@ -159,18 +166,6 @@ class Musicker {
 
     const musicker = this
 
-    class RichAlbum extends Album {
-      // constructor(def) {
-      //   super(def)
-      // }
-
-      get commentary() { return musicker.processText(this.def['Commentary']) }
-
-      get artists() {
-        return this.artist_names.map(name => thingByName(musicker.all_artists, name))
-      }
-    }
-
     class RichTrack extends Track {
       // constructor(def, album) {
       //   super(def, album)
@@ -184,6 +179,35 @@ class Musicker {
 
       get bandcampId() {
         return musicker.archive_music.tracks[this.directory].bandcampId
+      }
+    }
+
+    class RichAlbum extends Album {
+      // constructor(def) {
+      //   super(def)
+      // }
+
+      get commentary() { return musicker.processText(this.def['Commentary']) }
+
+      get artists() {
+        return this.artist_names.map(name => thingByName(musicker.all_artists, name))
+      }
+
+      get tracks() {
+        return this.trackdefs.map(trackdef => new RichTrack(trackdef, this))
+      }
+
+      get track_sections() {
+        return Object.fromEntries(
+          Object.entries(this.sections)
+          .filter(([section_name, trackdef_list]) => (
+            !(section_name == "Unsorted" && trackdef_list.length == 0))
+          )
+          .map(([section_name, trackdef_list]) => [
+            section_name,
+            trackdef_list.map(trackdef => new RichTrack(trackdef, this))
+          ])
+        )
       }
     }
 
@@ -203,6 +227,10 @@ class Musicker {
     )
 
     this.test()
+  }
+
+  getArtistByName(name) {
+    return thingByName(this.all_artists, name)
   }
 
   thingFromReference(reference) {
@@ -239,7 +267,7 @@ class Musicker {
     // Process links
     raw_text = raw_text
       .replace(
-        /\[\[([^\]]+?)\|([^\]]+?)\]\]/g,
+        /\[\[(?<reference>[^\]]+?)\|(?<label>[^\]]+?)\]\]/g,
         (match, p1, p2, groups) => {
           const [reference, label] = [p1, p2]
           try {
@@ -251,12 +279,27 @@ class Musicker {
           }
         }
       )
+      .replace(
+        /\[(?<label>[^\]]+?)\]\((?<href>[^)]+?)\)/g,
+        (match, p1, p2, groups) => {
+          const [label, href] = [p1, p2]
+          return `<a href='${href}'>${label}</a>`
+        }
+      )
+      .replace(
+        'src="media/misc/thanksforplaying.jpg"',
+        'src="assets://archive/social/news/thanksforplaying.jpg"'
+      )
 
     // Strip "original art" junk
     raw_text = raw_text
       .replace(/<i>Homestuck:<\/i> \(original track art\)(.|\n)+?>/g, '<!-- $1 -->')
 
     return raw_text
+  }
+
+  getAlbumBySlug(album_slug) {
+    return this.all_albums[album_slug]
   }
 
   getTrackBySlug(track_slug) {

@@ -37,7 +37,7 @@ export default {
       // List of Tracks on the page
       if (this.trackIds) {
         return this.trackIds.map(this.$musicker.getTrackBySlug)
-      } else {
+      } else if (this.pageId) {
         const viz_num = this.$mspaToViz(this.pageId).p
         const track_list = this.$musicker.tracksInPage(viz_num)
 
@@ -45,6 +45,9 @@ export default {
         // TODO: 008143 (???)
 
         return track_list
+      } else {
+        this.$logger.error("Tried to invoke flashcredit without a page or explicit ids")
+        return []
       }
     },
     hasCredit() {
