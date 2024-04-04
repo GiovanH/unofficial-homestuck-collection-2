@@ -399,7 +399,9 @@ Vue.mixin({
         )) || page.includes('Hiveswap Friendsim: ') || page.includes('Pesterquest: ')
       )
     },
-    $trackIsSpoiler(ref) {
+    $trackIsSpoiler(track) {
+      // FIXME: Implement for hsmusic
+      return false
       if (this.$isNewReader && ref in this.$archive.music.tracks) {
         const track = this.$archive.music.tracks[ref]
         // Try to find a single linked page or album that isn't a spoiler. If we can't, block it.
@@ -416,7 +418,7 @@ Vue.mixin({
         )
       } else return false
     },
-    $albumIsSpoiler(ref) {
+    $albumIsSpoiler(album) {
       // FIXME: Implement for hsmusic
       return false
       if (this.$isNewReader && ref in this.$archive.music.albums && this.$archive.music.albums[ref].date) {

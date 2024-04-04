@@ -130,10 +130,32 @@ class Track extends Thing {
     this.name = def['Track']
     this.duration = def['Duration']
     this.date = def['Date'] || this.album.date
+    this.external_links = def['URLs']
+    this.referenced_track_names = def['Referenced Tracks']
   }
 
   get artist_names() {
     return this.def['Artists'] || this.album.artist_names
+  }
+
+  get contributors() {
+    if (this.def['Contributors'] == undefined) return undefined
+    return this.def['Contributors']
+      .map(contribstring => {
+        const split_contrib = /(?<who>.+) \((?<what>.+)\)/.exec(contribstring)
+        if (split_contrib) {
+          const {who, what} = split_contrib.groups
+          return {
+            who,
+            what
+          }
+        } else {
+          return {
+            who: contribstring,
+            what: undefined
+          }
+        }
+      })
   }
 
   get artpath() {
@@ -267,7 +289,7 @@ class Musicker {
     // Process links
     raw_text = raw_text
       .replace(
-        /\[\[(?<reference>[^\]]+?)\|(?<label>[^\]]+?)\]\]/g,
+        /\[\[(?<reference>[^|\]]+?)\|(?<label>[^\]]+?)\]\]/g,
         (match, p1, p2, groups) => {
           const [reference, label] = [p1, p2]
           try {
@@ -276,6 +298,19 @@ class Musicker {
           } catch (e) {
             logger.warn("Could not resolve thingFromReference", reference, e)
             return label
+          }
+        }
+      )
+      .replace(
+        /\[\[(?<track>[^|\]]+?)\]\]/g,
+        (match, p1, groups) => {
+          const [track] = [p1]
+          try {
+            const thing = this.thingFromReference(track)
+            return `<a href='${thing.uhcLink}'>${thing.name}</a>`
+          } catch (e) {
+            logger.warn("Could not resolve thingFromReference", track, e)
+            return track
           }
         }
       )

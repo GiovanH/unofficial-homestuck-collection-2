@@ -1,9 +1,27 @@
 <template>
-  <div class="trackPage">
+  <div class="trackPage" v-if="$trackIsSpoiler(track)">
+    <div class="nameSection">
+      <h2 class="trackTitle">Spoiler!</h2>
+    </div>
+    <div class="info">
+      Keep reading to unlock.
+    </div>
+  </div>
+  <div class="trackPage" v-else>
     <div class="nameSection">
       <h2 class="trackTitle">{{track.name}}</h2>
-      <h3 class="byArtist" >from <span v-html="albumLinkHtml" /></h3>
-      <h3 class="byArtist">by <span v-html="composerListHtml" /></h3>
+      <h3 class="byArtist" >
+        from
+        <a :href="track.album.uhcLink" v-text="track.album.name"/>
+      </h3>
+      <h3 class="byArtist">
+        by
+        <ol class="nameList">
+          <li v-for="name, i in track.artist_names" :key="i" >
+            <a :href="$musicker.getArtistByName(name).uhcLink" v-text="name"/>
+          </li>
+        </ol>
+      </h3>
       <h3 class="byArtist"
         v-if="track.coverArtists && track.coverArtists[0].who != 'homestuck'"
       >
@@ -12,41 +30,63 @@
     </div>
 
     <div class="middleColumn">
-      <a :href="trackArtPath">
-        <Media v-if="trackArtPath" :url="trackArtPath" width="350" />
+      <a :href="track.artpath">
+        <Media v-if="track.artpath" :url="track.artpath" width="350" />
       </a>
     </div>
 
     <div class="info">
       <iframe v-if="$localData.settings.bandcampEmbed && track.bandcampId" class="bandcamp" :key="track.directory" :src="`https://bandcamp.com/EmbeddedPlayer/size=small/bgcol=333333/linkcol=0f91ff/artwork=none/track=${track.bandcampId}/transparent=true/`" seamless></iframe>
 
-      <!-- Reimplement -->
-      <!-- <p class="links" v-if="linkAndJoinExternalMusic">Listen on <span v-html="linkAndJoinExternalMusic" /></p> -->
+      <p class="links" v-if="track.external_links">
+        Listen at
+        <ol class="linkList">
+          <li v-for="href, i in track.external_links" :key="i" >
+            <a :href="href" v-text="getHostname(href)"/>
+          </li>
+        </ol>
+      </p>
 
       <p>
         <span class="duration" v-if="track.duration">Duration: {{track.duration}}<br></span>
-        <span class="release" v-if="track.date">Released {{getUTCDate(track.date)}}</span>
+        <span class="release" v-if="track.date">Released {{track.date}}</span>
       </p>
 
-      <!--
-      <div class="featuredIn" v-if="track.contributors && track.contributors.length > 0">Contributors:
+      <div class="featuredIn" v-if="track.contributors">Contributors:
         <ul>
-          <li v-for="contributor in linkContributors" v-html="contributor"/>
+          <li v-for="contribution, i in track.contributors" :key="i">
+            <a
+              v-if="$musicker.getArtistByName(contribution.who)"
+              :href="$musicker.getArtistByName(contribution.who).uhcLink"
+              v-text="contribution.who"/>
+            <span v-else v-text="contribution.who" />
+            <span v-if="contribution.what"> ({{contribution.what}})</span>
+          </li>
         </ul>
       </div>
 
+      <!--
       <div class="featuredIn" v-if="linkPages">Pages that feature <i>{{track.name}}</i>:
         <ul>
           <li v-for="page in linkPages" v-html="page"/>
         </ul>
       </div>
+      -->
 
-      <div class="references" v-if="track.references && track.references.length > 0">Tracks that <i>{{track.name}}</i> references:
+      <div class="references" v-if="track.referenced_track_names">
+        Tracks that <i>{{track.name}}</i> references:
         <ul>
-          <li v-for="reference in track.references" v-html="linkReference(reference)"/>
+          <li v-for="name, i in track.referenced_track_names" :key="i">
+            <a
+              v-if="$musicker.thingFromReference(name)"
+              :href="$musicker.thingFromReference(name).uhcLink"
+              v-text="name"/>
+            <span v-else v-text="name" />
+          </li>
         </ul>
       </div>
 
+      <!--
       <div class="referencedBy" v-if="track.referencedBy && track.referencedBy.length > 0">Tracks that reference <i>{{track.name}}</i>:
         <ul>
           <li v-for="reference in track.referencedBy" v-html="linkReference(reference)"/>
@@ -84,123 +124,13 @@ export default {
     }
   },
   computed: {
-    trackArtPath() {
-      const real_art = this.track.artpath
-      // TODO spoilers
-      // return (this.$albumIsSpoiler(this.track.album) ) ? `/archive/music/spoiler.png` : real_art
-      return real_art
-    },
-    albumLinkHtml() {
-      const album = this.track.album
-      return (
-        this.$albumIsSpoiler(album)
-        ? '??????'
-        : `<a href="${album.uhcLink}">${album.name}</a>`
-      )
-    },
-    composerListHtml() {
-      if (this.track.artists.length > 0) {
-        return this.joinNoOxford(this.track.artists.map(a => this.artistToLink(a)))
-      } else {
-        return "homestuck"
-      }
-      // return this.joinNoOxford(this.linkArtists(this.track.artists || ['homestuck']))
-    },
-    linkContributors() {
-      return this.linkArtists(this.track.contributors || ['homestuck'])
-    },
-    coverArtistListHtml() {
-      return this.joinNoOxford(this.linkArtists(this.track.coverArtists || []))
-    },
-    linkPages() {
-      // TODO: No. None of this is okay.
-      if (this.track.pages && this.track.pages.length > 0) {
-        let result = []
-        this.track.pages.forEach(page => {
-          if (page in this.$archive.mspa.story) {
-            let flash = this.$archive.music.flashes[page]
-            let bolin = 'bolin' in flash && !this.$archive.music.flashes[page].tracks.includes(this.track.directory)
-            
-            if (this.$pageIsSpoiler(page)) result.push('??????')
-            else {
-              let pageNum = this.$mspaOrVizNumber(page)
-              let pageTitle = this.$archive.mspa.story[page].title
-              result.push(`<em>Page ${pageNum}</em> - <a href="/mspa/${page}" target="_blank" >${pageTitle}</a> ${bolin ? ' (Removed 11/Jun/2010)' : ''}`)
-            }
-          }
-          else if (page == 'ps_titlescreen') result.push(`<a href="/unlock/PS_titlescreen" target="_blank" >Problem Sleuth Titlescreen</a>`)
-          else if (page == 'assets://sweetbroandhellajeff/movies/SBAHJthemovie1.swf') result.push(`<a href="assets://sweetbroandhellajeff/movies/SBAHJthemovie1.swf" target="_blank" >SBAHJthemovie1.swf</a>`)
-          else result.push(page)
-        })
-        return result
-      }
-      else return false
-    },
-    // linkAndJoinExternalMusic() {
-    //   if (this.track.urls) {
-    //     // Todo: rewrite this with host sanitization (let host = urlLib.parse(url).host == bandcamp.com)
-    //     let sources = this.track.urls.map(url =>`<a href="${url}">${
-    //       url.includes('bandcamp.com') ? 'Bandcamp' :
-    //       url.includes('youtu') ? 'YouTube' :
-    //       url.includes('soundcloud') ? 'SoundCloud' :
-    //       url.includes('tumblr.com') ? 'Tumblr' :
-    //       url.includes('twitter.com') ? 'Twitter' :
-    //       url.includes('deviantart.com') ? 'DeviantArt' :
-    //       url.includes('wikipedia.org') ? 'Wikipedia' : url}</a>`)
-    //     return this.joinNoOxford(sources, 'or')
-    //   }
-    //   else return false
-    // }
   },
   methods: {
-    // thnks florrie 👍
-    joinNoOxford(array, plural = 'and') {
-      if (array.length === 0) {
-        return ''
-      }
-
-      if (array.length === 1) {
-        return array[0]
-      }
-
-      if (array.length === 2) {
-        return `${array[0]} ${plural} ${array[1]}`
-      }
-
-      return `${array.slice(0, -1).join(', ')} ${plural} ${array[array.length - 1]}`
-    },
-    artistToLink(artist) {
-      if (typeof artist == 'string') return `<a href="/music/artist/${artist}">${this.$archive.music.artists[artist].name}</a>`
-      else return `<a href="${artist.uhcLink}">${artist.name}</a>`
-      // ${!!artist.what ? ` (${artist.what})` : ''}
-    },
-    linkReference(reference) {
-      if (this.$trackIsSpoiler(reference)) {
-        return '??????'
-      }
-      else if (reference in this.$archive.music.tracks) {
-        return `<a href="/music/track/${this.$archive.music.tracks[reference].directory}">${this.$archive.music.tracks[reference].name}</a> <i>by ${this.joinNoOxford(this.linkArtists(this.$archive.music.tracks[reference].artists))}</i>`
-      }
-      else return reference
-    },
-    // secondsToMinutes(time) {
-    //   if (Number.isInteger(time)){
-    //     let m = Math.floor(time % 3600 / 60)
-    //     let s = Math.floor(time % 3600 % 60)
-
-    //     var mDisplay = m.toString().padStart(2, '0')
-    //     var sDisplay = s.toString().padStart(2, '0')
-    //     return mDisplay + ':' + sDisplay
-    //   }
-    //   else return ''
-    // },
-    getUTCDate(date){
-      let d = new Date(date)
-      let month = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][d.getUTCMonth()]
-      return `${month} ${d.getUTCDate()}, ${d.getUTCFullYear()}`
+    getHostname(href) {
+      return (new URL(href)).hostname
     },
     filterCommentaryLinksAndImages(){
-      return this.filterLinksAndImages(this.$refs.commentary);
+      return this.filterLinksAndImages(this.$refs.commentary)
     }
   },
   mounted(){
@@ -225,6 +155,31 @@ export default {
     .byArtist {
       width: 385px;
       font: normal 14px/1.25 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
+  }
+
+  .nameList, .linkList {
+    display: inline;
+    li { display: inline; }
+    li + li {
+      &:before { content: ", "; }
+    }
+  }
+
+  .nameList {
+    li + li {
+      &:last-of-type:before { content: ", and "; }
+    }
+    li:first-of-type + li {
+      &:last-of-type:before { content: " and "; }
+    }
+  }
+  .linkList {
+    li + li {
+      &:last-of-type:before { content: ", or "; }
+    }
+    li:first-of-type + li {
+      &:last-of-type:before { content: " or "; }
     }
   }
 
@@ -262,9 +217,9 @@ export default {
     }
     li {
       padding: 3px 0;
-      a {
-        padding-right: 6px;
-      }
+      // a, span {
+      //   padding-right: 6px;
+      // }
     }
 
     .references, .referencedBy, .featuredIn {
