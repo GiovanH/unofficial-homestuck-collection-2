@@ -17,8 +17,9 @@
       <h3 class="byArtist">
         by
         <ol class="nameList">
-          <li v-for="name, i in track.artist_names" :key="i" >
-            <a :href="$musicker.getArtistByName(name).uhcLink" v-text="name"/>
+          <li v-for="c, i in track.artist_contribs" :key="i"
+            :set="artist = $musicker.getArtistByName(c.who)">
+            <a :href="artist.uhcLink" v-text="artist.name"/>
           </li>
         </ol>
       </h3>
@@ -49,7 +50,7 @@
 
       <p>
         <span class="duration" v-if="track.duration">Duration: {{track.duration}}<br></span>
-        <span class="release" v-if="track.date">Released {{track.date}}</span>
+        <span class="release" v-if="track.date">Released {{ track.date.toLocaleDateString([], {month: 'long', day: 'numeric', year: 'numeric'}) }}</span>
       </p>
 
       <div class="featuredIn" v-if="track.contributors">Contributors:
@@ -140,123 +141,6 @@ export default {
 </script>
 
 <style scoped lang="scss">
-.trackPage {
-  font: 13px/1.231 'Helvetica Neue', Helvetica, Arial, sans-serif;
 
-  h2.trackTitle {
-    font: normal 28px/1em 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    margin: -4px 30px 8px 0; /* right margin equal to space between columns */
-    word-wrap: break-word;
-    max-width: 726px;
-  }
-
-  .nameSection {
-    float: left;
-    .byArtist {
-      width: 385px;
-      font: normal 14px/1.25 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    }
-  }
-
-  .nameList, .linkList {
-    display: inline;
-    li { display: inline; }
-    li + li {
-      &:before { content: ", "; }
-    }
-  }
-
-  .nameList {
-    li + li {
-      &:last-of-type:before { content: ", and "; }
-    }
-    li:first-of-type + li {
-      &:last-of-type:before { content: " and "; }
-    }
-  }
-  .linkList {
-    li + li {
-      &:last-of-type:before { content: ", or "; }
-    }
-    li:first-of-type + li {
-      &:last-of-type:before { content: " or "; }
-    }
-  }
-
-  .middleColumn {
-    float: right;
-    padding-bottom: 20px;
-    width: 350px;
-    img {
-      outline: 1px solid rgba(0,0,0,0.25);
-      width: 350px;
-    }
-    a::after {
-      content: none;
-    }
-  }
-
-  .info {
-    float: left;
-    width: 376px;
-
-    .bandcamp {
-      width: 100%; 
-      height: 42px;
-      background: #303030;
-    }
-
-    > ol, > ul, > div, > p, > iframe {
-      margin-top: 16px;
-    }
-    
-
-    ol {
-      list-style-position: inside;
-      color: var(--page-links-visited);;
-    }
-    li {
-      padding: 3px 0;
-      // a, span {
-      //   padding-right: 6px;
-      // }
-    }
-
-    .references, .referencedBy, .featuredIn {
-      ul {
-        margin-left: 24px;
-      }
-    }
-  }
-  
-  .commentaryContainer {
-    padding-top: 24px;
-    clear: both;
-
-    .commentary {
-      white-space: pre-wrap;
-      background-color: white;
-      color: black;
-      padding: 10px;
-      border: solid 3px grey;
-      ::v-deep {
-        a {
-          color: #0000EE
-        }
-        img {
-          max-width: 100%;
-        }
-        li, ul {
-          list-style-position: inside;
-        }
-      }
-
-      &.lock {
-        text-align: center;
-        font-weight: bold;
-      }
-    }
-  }
-}
 </style>
 

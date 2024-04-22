@@ -48,6 +48,26 @@ function getKebabCase(name) {
     .toLowerCase();
 }
 
+function decomposeContribString(contribstring, default_role) {
+  const split_contrib = /(?<who>.+) \((?<what>.+)\)/.exec(contribstring)
+  if (split_contrib) {
+    const {who, what} = split_contrib.groups
+    return {
+      who,
+      what
+    }
+  } else {
+    return {
+      who: contribstring,
+      what: (default_role || null)
+    }
+  }
+}
+
+function mapContribString(set, default_role) {
+  return set?.map(cs => decomposeContribString(cs, default_role))
+}
+
 function thingByName(thing_reg, name) {
   const matches = Object.values(thing_reg)
     .filter(thing => thing.def["Always Reference By Directory"] !== true)
@@ -55,12 +75,19 @@ function thingByName(thing_reg, name) {
 
   if (matches.length == 1) return matches[0]
   else if (matches.length > 1) {
-    logger.warn("Multiple matches for reference", name, matches)
-    // TODO: In this case, prioritize originals over rereleases
-    // Rereleases defined by `Originally Released As` set
-    return matches[0]
+    // logger.warn("Multiple matches for reference", name, matches)
+    return matches.filter(t => !t.def["Originally Released As"])[0]
   }
   else return undefined
+}
+
+function dateOrUndef(input) {
+  const result = new Date(input)
+  if (result instanceof Date && !isNaN(result)) {
+    return result
+  } else {
+    return undefined
+  }
 }
 
 class Thing {
@@ -73,13 +100,32 @@ class Thing {
       return `/music/${this.index_name}/${this.directory}`
     else {
       throw Error("index_name not defined on object", this)
-      return undefined
+      // return undefined
     }
   }
 
-  get directory() {
-    return this.def['Directory'] || getKebabCase(this.name)
+  get directory() { return this.def['Directory'] || getKebabCase(this.name) }
+
+  equals(other) {
+    return (other) && (this.directory == other.directory)
   }
+
+  // get timestamp() {
+  //   if (this.date == undefined) {
+  //     logger.warn("Can't get timestamp on dateless object", this)
+  //     return Infinity
+  //   }
+  //   let datetime
+  //   for (const fmtstr of ["MMMM d, yyyy", "MMMM d, yyyy TT", "MMMM d yyyy"]) {
+  //     datetime = DateTime.fromFormat(this.date, fmtstr)
+  //     if (datetime.invalid) continue
+  //     else break
+  //   }
+  //   if (datetime.invalid) {
+  //     logger.error(datetime.invalid)
+  //   }
+  //   return datetime.ts
+  // }
 }
 
 class Artist extends Thing {
@@ -87,6 +133,7 @@ class Artist extends Thing {
     super(def)
 
     this.name = def['Artist']
+    this.external_links = def['URLs']
   }
 }
 Artist.prototype.index_name = 'artist'
@@ -99,11 +146,22 @@ class Album extends Thing {
     this.sections = def.sections
 
     this.name = def.header['Album']
-    this.artist_names = def.header['Artists']
-    this.cover_artist_names = def.header['Cover Artists']
-    this.date = def.header['Date']
     this.external_links = def.header['URLs']
     this.bonus = def.header['Additional Files']
+  }
+
+  get date() { return dateOrUndef(this.def['Date']) }
+
+  get artist_contribs() { return mapContribString(this.def['Artists']) }
+  get cover_artist_contribs() { return mapContribString(this.def['Cover Artists'], 'cover art') }
+  get contributor_contribs() { return mapContribString(this.def['Contributors']) }
+
+  get all_contributors() {
+    return [
+      ...(this.artist_contribs || []),
+      ...(this.cover_artist_contribs || []),
+      ...(this.contributor_contribs || [])
+    ]
   }
 
   get trackdefs() { return Object.values(this.sections).flat() }
@@ -129,34 +187,43 @@ class Track extends Thing {
 
     this.name = def['Track']
     this.duration = def['Duration']
-    this.date = def['Date'] || this.album.date
     this.external_links = def['URLs']
     this.referenced_track_names = def['Referenced Tracks']
   }
 
-  get artist_names() {
-    return this.def['Artists'] || this.album.artist_names
+  get date() { return (this.def['Date'] ? dateOrUndef(this.def['Date']) : this.album.date) }
+
+  get artist_contribs() {
+    return mapContribString(this.def['Artists']) ||
+    this.album.artist_contribs
   }
 
-  get contributors() {
-    if (this.def['Contributors'] == undefined) return undefined
-    return this.def['Contributors']
-      .map(contribstring => {
-        const split_contrib = /(?<who>.+) \((?<what>.+)\)/.exec(contribstring)
-        if (split_contrib) {
-          const {who, what} = split_contrib.groups
-          return {
-            who,
-            what
-          }
-        } else {
-          return {
-            who: contribstring,
-            what: undefined
-          }
-        }
-      })
+  get cover_artist_contribs() {
+    return mapContribString(this.def['Cover Artists'], 'cover art') ||
+      this.album.cover_artist_contribs
   }
+
+  get contributor_contribs() {
+    return mapContribString(this.def['Contributors']) ||
+      this.album.contributor_contribs
+  }
+
+  get all_contributors() {
+    return [
+      ...(this.artist_contribs || []),
+      ...(this.cover_artist_contribs || []),
+      ...(this.contributor_contribs || [])
+    ]
+  }
+  // get artist_names() {
+  //   return this.def['Artists'] || this.album.artist_names
+  // }
+
+  // get contributors() {
+  //   if (this.def['Contributors'] == undefined) return undefined
+  //   return this.def['Contributors']
+  //     .map(decomposeContribString)
+  // }
 
   get artpath() {
     if (this.def['Cover Artists']) {
@@ -186,6 +253,8 @@ class Musicker {
       .map(thing => [thing.directory, thing])
     )
 
+    this.all_flashdefs = this.hsmusic.flashes
+
     const musicker = this
 
     class RichTrack extends Track {
@@ -195,13 +264,12 @@ class Musicker {
 
       get commentary() { return musicker.processText(this.def['Commentary']) }
 
-      get artists() {
-        return this.artist_names.map(name => thingByName(musicker.all_artists, name))
-      }
+      get bandcampId() { return musicker.archive_music.tracks[this.directory]?.bandcampId }
 
-      get bandcampId() {
-        return musicker.archive_music.tracks[this.directory].bandcampId
-      }
+      // get artists() {
+      //   return this.artist_names?.map(name => thingByName(musicker.all_artists, name)) || []
+      // }
+
     }
 
     class RichAlbum extends Album {
@@ -211,12 +279,24 @@ class Musicker {
 
       get commentary() { return musicker.processText(this.def['Commentary']) }
 
-      get artists() {
-        return this.artist_names.map(name => thingByName(musicker.all_artists, name))
-      }
+      get tracks() { return this.trackdefs.map(trackdef => new RichTrack(trackdef, this)) }
 
-      get tracks() {
-        return this.trackdefs.map(trackdef => new RichTrack(trackdef, this))
+      // get artists() {
+      //   // if (this.artist_names?.length > 0) {
+      //     return this.artist_names?.map(name => thingByName(musicker.all_artists, name))
+      //   // } else {
+      //   //   return [...new Set(this.tracks.map(track => track.artists).flat())]
+      //   // }
+      // }
+
+      get artpath() {
+        // Broken for albums like mobius trip with old jpg art
+        const archive_dir = this.directory?.toLowerCase() // Needed for colours
+        if (Object.keys(archive_music.albums).includes(archive_dir)) {
+          return `assets://archive/music/${archive_dir}/cover.jpg`
+        } else {
+          return super.artpath
+        }
       }
 
       get track_sections() {
@@ -252,7 +332,11 @@ class Musicker {
   }
 
   getArtistByName(name) {
-    return thingByName(this.all_artists, name)
+    const result = thingByName(this.all_artists, name)
+    if (result == undefined) {
+      logger.error("Failed to lookup artist by name", name)
+    }
+    return result
   }
 
   thingFromReference(reference) {
@@ -274,7 +358,11 @@ class Musicker {
     const match_kind = /(?<kind>.+):(?<ref_name>.+)/.exec(reference)
     if (match_kind != undefined) {
       const {kind, ref_name} = match_kind.groups
-      const result = matchers[kind](ref_name)
+      const matcher = matchers[kind]
+      if (matcher == undefined) {
+        logger.error("No matcher defined for kind:", kind)
+      }
+      const result = matcher(ref_name)
       if (result != undefined) { return result }
     } else {
       return thingByName(this.all_tracks, reference)
@@ -322,6 +410,13 @@ class Musicker {
         }
       )
       .replace(
+        /\\(.)/g,
+        (match, p1, groups) => {
+          console.log("Unescaped", p1)
+          return p1
+        }
+      )
+      .replace(
         'src="media/misc/thanksforplaying.jpg"',
         'src="assets://archive/social/news/thanksforplaying.jpg"'
       )
@@ -339,6 +434,10 @@ class Musicker {
 
   getTrackBySlug(track_slug) {
     return this.all_tracks[track_slug]
+  }
+
+  getArtistBySlug(artist_slug) {
+    return this.all_artists[artist_slug]
   }
 
   tracksInPage(viz_page) {
@@ -368,7 +467,7 @@ class Musicker {
       for (const query in lib) {
         const expected = lib[query]
         const result = await Promise.resolve(fn(query))
-        if (result != expected) {
+        if (JSON.stringify(result) != JSON.stringify(expected)) {
           logger.error(
             fn, `test failed: for input`, query,
             `expected`, expected,
@@ -390,7 +489,7 @@ class Musicker {
 
     // Date
     await expectMap({
-      "overture-canon-edit": "April 13, 2016", // Album fallback
+      "overture-canon-edit": new Date("April 13, 2016"), // Album fallback
     }, (slug) => this.getTrackBySlug.bind(this)(slug).date)
 
     // Duration
@@ -398,7 +497,7 @@ class Musicker {
       "overture-canon-edit": "9:00"
     }, (slug) => this.getTrackBySlug.bind(this)(slug).duration)
 
-    // Commentary
+    // Commentary exists
     await expectMap({
       "showdown": true,
       "overture-canon-edit": false

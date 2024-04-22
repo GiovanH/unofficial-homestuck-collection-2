@@ -8,7 +8,7 @@ import Memoization from '@/memoization.js'
 
 import Mods from "./mods.js"
 import Resources from "./resources.js"
-import HSMusic from '@/hsmusic.js'
+import HSMusic from '@/js/hsmusic.js'
 
 import { library } from '@fortawesome/fontawesome-svg-core'
 import {

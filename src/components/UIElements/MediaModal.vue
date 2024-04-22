@@ -14,7 +14,8 @@
             - <span v-text="splitPath[1]" @click.prevent="openItem" />
           </div>
         </div>
-        <FlashCredit :pageId="this.contentId"/>
+        <!-- TODO: When is this used? -->
+        <!-- <FlashCredit :pageId="this.contentId"/> -->
       </div>
     </div>
   </transition>

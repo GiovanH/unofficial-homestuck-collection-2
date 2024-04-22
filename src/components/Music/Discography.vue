@@ -1,21 +1,30 @@
 <template>
   <div class="discographyPage">
     <div class="trackography" v-if="mode == 'tracks'">
-      <div class="album" v-for="album in trackographySorted" :key="album.directory">
+      <div class="album" v-for="album in allAlbumsSorted" :key="album.directory">
         <div class="thumbnail">
-          <a v-if="!album.isSpoiler" :href="`/music/album/${album.directory}`" class="coverArt">
-            <Media :url="`/archive/music/${album.directory}/cover.jpg`" />
+          <a v-if="!album.isSpoiler" :href="album.artpath" class="coverArt">
+            <Media :url="album.artpath || 'assets://archive/music/spoiler.png'" />
           </a>
           <div v-else class="coverArt">
             <Media url="/archive/music/spoiler.png" />
           </div>
-          <p v-if="$archive.music.albums[album.directory].date" class="date" v-text="getUTCDate($archive.music.albums[album.directory].date)" />
+          <p v-if="album.date" class="date" v-text="album.date.toLocaleDateString([], {month: 'long', day: 'numeric', year: 'numeric'})" />
         </div>
         <div>
-          <a :href="`/music/album/${album.directory}`" v-if="!album.isSpoiler"><h2 class="trackTitle">{{$archive.music.albums[album.directory].name}}</h2></a>
-          <h2 class="trackTitle" v-else>??????</h2>
+          <a :href="album.uhcLink" v-if="!album.isSpoiler">
+            <h2 class="trackTitle">{{album.name}}</h2></a>
+            <h2 class="trackTitle" v-else>??????</h2>
           <ol>
-            <li v-for="track in album.tracks" v-html="track"/>
+            <li v-for="track in album.tracks">
+              <a :href="track.uhcLink" v-text="track.name" />
+              <span v-if="track.artist_contribs && track.artist_contribs.length == 1"> - <a
+                  class="compilationArtist"
+                  :set="artist = $musicker.getArtistByName(track.artist_contribs[0].who) || {}"
+                  :href="artist.uhcLink"
+                  v-text="artist.name" />
+                </span>
+            </li>
           </ol>
         </div>
       </div>
@@ -23,7 +32,9 @@
     <div class="artistography" v-else-if="mode == 'artists'">
       <h2 class="trackTitle">Artists:</h2>
       <ul class="artists">
-        <li v-for="artist in artistographySorted" v-html="artist"/>
+        <li v-for="artist in artistographySorted" :key="artist.directory">
+          <a :href="artist.uhcLink" v-text="artist.name" />
+        </li>
       </ul>
     </div>
     <div class="flashography" v-else-if="mode == 'features'">
@@ -47,19 +58,21 @@
     <div class="discography" v-else>
       <button class="reverseButton" @click="reverseDiscography = !reverseDiscography">Reverse Order</button><br>
       <div class="albums">
-        <div class="album" v-if="discographySorted.length < Object.keys($archive.music.albums).length && !reverseDiscography">
+        <!-- TODO spoilers -->
+        <!-- <div class="album" v-if="discographySorted.length < Object.keys($archive.music.albums).length && !reverseDiscography">
           <div>
             <Media class="art" url="/archive/music/spoiler.png" width="350" />
             <p class="title">Keep reading to unlock!</p>
           </div>
-        </div>
-        <div class="album" v-for="album in discographySorted" :key="$archive.music.albums[album].directory">
-          <a :href="`/music/album/${$archive.music.albums[album].directory}`">
-            <Media class="art" :url="`/archive/music/${$archive.music.albums[album].directory}/cover.jpg`" width="350" />
-            <p class="title" v-text="$archive.music.albums[album].name" />
-            <span class="artistOverride" v-if="$archive.music.albums[album].artists && $archive.music.albums[album].artists[0] != 'homestuck'">
-              {{joinNoOxford($archive.music.albums[album].artists.map(artist=>$archive.music.artists[artist.who].name))}}
-            </span>
+        </div> -->
+        <div class="album" v-for="album in discographySorted" :key="album.directory">
+          <a :href="album.uhcLink">
+            <img class="art" :src="album.artpath || 'assets://archive/music/spoiler.png'" width="350" />
+            <p class="title" v-text="album.name" />
+            <p class="date" v-text="album.date.toLocaleDateString([], {month: 'long', day: 'numeric', year: 'numeric'})" />
+            <!-- <span class="artistOverride" v-if="album.artists && album.artists[0] != 'homestuck'">
+              {{joinNoOxford(album.artists.map(artist=>$archive.music.artists[artist.who].name))}}
+            </span> -->
           </a>
         </div>
         <div class="album" v-if="discographySorted.length < Object.keys($archive.music.albums).length && reverseDiscography">
@@ -90,22 +103,28 @@ export default {
     }
   },
   computed: {
+    allAlbumsSorted() {
+      var all_albums = Object.values(this.$musicker.all_albums)
+        .filter(a => a.directory != 'references-beyond-homestuck')
+      all_albums.sort((a, b) => a.date - b.date)
+      return all_albums
+    },
     trackographySorted() {
       // Always send unreleased-tracks to the bottom of the list. Otherwise, sort in chronological order of release
-      const keys = Object.keys(this.$archive.music.albums).sort((key1, key2) => {
+      let keys = Object.keys(this.$archive.music.albums).sort((key1, key2) => {
         if (key1 == 'unreleased-tracks') return 1
         else if (key2 == 'unreleased-tracks') return -1
         else return new Date(this.$archive.music.albums[key1].date) - new Date(this.$archive.music.albums[key2].date)
       })
       
-      const result = []
+      let result = []
       keys.forEach(key => {
-        const directory = key
-        const isSpoiler = this.$albumIsSpoiler(key)
-        const tracks = []
+        let directory = key
+        let isSpoiler = this.$albumIsSpoiler(key)
+        let tracks = []
         let isValidAlbum = false
         this.$archive.music.albums[key].tracks.forEach(track => {
-          const linkedTrack = this.linkTrack(track)
+          let linkedTrack = this.linkTrack(track)
           if (!isValidAlbum && !linkedTrack.includes('>??????<')) isValidAlbum = true
           tracks.push(linkedTrack)
         })
@@ -114,25 +133,21 @@ export default {
       return result
     },
     artistographySorted() {
-      // Sort artists in alphabetical order, and split into a maximum of three equal-ish columns. Try to hit around a minimum of 50 per column.
-      const keys = Object.keys(this.$archive.music.artists).sort((key1, key2) => {
-        if (key1 < key2) return -1
-        if (key1 > key2) return 1
-        return 0
-      })
-      return keys.map(artist => `<a href="/music/artist/${artist}">${this.$archive.music.artists[artist].name}</a>`)
+      let artist_list = [...Object.values(this.$musicker.all_artists)]
+      // TODO: Filter artists who are only in external references
+      return artist_list
     },
     flashographySorted() {
       // Sort in chronological order of release
-      const keys = Object.keys(this.$archive.music.flashes).sort((key1, key2) => {
-        const timestamp1 = key1 in this.$archive.mspa.story && this.$archive.mspa.story[key1].timestamp ? this.$archive.mspa.story[key1].timestamp : new Date(this.$archive.music.flashes[key1].date).getTime() / 1000
-        const timestamp2 = key2 in this.$archive.mspa.story && this.$archive.mspa.story[key2].timestamp ? this.$archive.mspa.story[key2].timestamp : new Date(this.$archive.music.flashes[key2].date).getTime() / 1000
+      let keys = Object.keys(this.$archive.music.flashes).sort((key1, key2) => {
+        let timestamp1 = key1 in this.$archive.mspa.story && this.$archive.mspa.story[key1].timestamp ? this.$archive.mspa.story[key1].timestamp : new Date(this.$archive.music.flashes[key1].date).getTime()/1000
+        let timestamp2 = key2 in this.$archive.mspa.story && this.$archive.mspa.story[key2].timestamp ? this.$archive.mspa.story[key2].timestamp : new Date(this.$archive.music.flashes[key2].date).getTime()/1000
         
         return timestamp1 - timestamp2
       })
-      const result =  keys.filter(page => !this.$pageIsSpoiler(page) && page != '007326').map(page => {
-        const flash = this.$archive.music.flashes[page]
-        const tracks = []
+      let result =  keys.filter(page => !this.$pageIsSpoiler(page) && page != '007326').map(page => {
+        let flash = this.$archive.music.flashes[page]
+        let tracks = []
 
         flash.tracks.forEach(track => tracks.push(this.linkReference(track)))
         
@@ -142,7 +157,7 @@ export default {
           })
         }
 
-        const pageData = this.getPage(page)
+        let pageData = this.getPage(page)
         return {
           title: pageData.title, 
           pageNum: pageData.pageNum,
@@ -161,9 +176,12 @@ export default {
     },
     discographySorted() {
       // Sort in reverse-chronological order of release.
-      const keys = Object.keys(this.$archive.music.albums).filter(album => !this.$albumIsSpoiler(album))
-      const sorted = keys.sort((key1, key2) => new Date(this.$archive.music.albums[key2].date) - new Date(this.$archive.music.albums[key1].date))
-      return this.reverseDiscography ? sorted.reverse() : sorted
+      // let keys = Object.keys(this.$archive.music.albums).filter(album => !this.$albumIsSpoiler(album))
+      // let sorted = keys.sort((key1, key2) => new Date(this.$archive.music.albums[key2].date) - new Date(this.$archive.music.albums[key1].date))
+      var all_albums = Object.values(this.$musicker.all_albums)
+      all_albums.sort((a, b) => a.date - b.date)
+
+      return this.reverseDiscography ? all_albums.toReversed() : all_albums
     }
   },
   methods: {
@@ -186,39 +204,43 @@ export default {
     linkArtists(array) {
       return array.map(artist => {
         if (typeof artist == 'string') return `<a href="/music/artist/${artist}">${this.$archive.music.artists[artist].name}</a>`
-        else return `<a href="/music/artist/${artist.who}">${this.$archive.music.artists[artist.who].name}</a>${artist.what ? ` (${artist.what})` : ''}`
+        else return `<a href="/music/artist/${artist.who}">${this.$archive.music.artists[artist.who].name}</a>${!!artist.what ? ` (${artist.what})` : ''}`
       })
     },
     linkReference(reference) {
       if (this.$trackIsSpoiler(reference)) {
         return '??????'
-      } else if (reference in this.$archive.music.tracks) {
+      }
+      else if (reference in this.$archive.music.tracks) {
         return `<a href="/music/track/${this.$archive.music.tracks[reference].directory}">${this.$archive.music.tracks[reference].name}</a> <i>by ${this.joinNoOxford(this.linkArtists(this.$archive.music.tracks[reference].artists))}</i>`
-      } else return reference
+      }
+      else return reference
     },
     linkTrack(dir) {
       if (this.$trackIsSpoiler(dir)) return '<span class="spoiler">??????</span>'
       if (dir in this.$archive.music.tracks) {
-        const track = this.$archive.music.tracks[dir]
-        const href = `/music/track/${track.directory}`
-        const duration = track.duration ? `<span class="duration">${this.secondsToMinutes(track.duration)}</span>` : ''
-        const html = `<a href="${href}">${track.name}</a>${duration}`
+        let track = this.$archive.music.tracks[dir]
+        let href = `/music/track/${track.directory}`
+        let duration = track.duration ? `<span class="duration">${this.secondsToMinutes(track.duration)}</span>`: ''
+        let html = `<a href="${href}">${track.name}</a>${duration}`
         return html
-      } else return dir 
+      }
+      else return dir 
     },
     getPage(page){
       if (page in this.$archive.mspa.story) {
-        const title = this.$archive.mspa.story[page].title
-        const thumbnail = this.$mspaToViz(page).p
-        const pageNum = (!/\D/.test(page) ? 'Page ' : '') + (this.$localData.settings.mspaMode ? page : thumbnail)
-        const url = `/mspa/${page}`
+        let title = this.$archive.mspa.story[page].title
+        let thumbnail = this.$mspaToViz(page).p
+        let pageNum = (!/\D/.test(page) ? 'Page ' : '') + (this.$localData.settings.mspaMode ? page : thumbnail)
+        let url = `/mspa/${page}`
         return {
           title, 
           pageNum,
           thumbnail,
           url
         }
-      } else if (page == 'ps_titlescreen') return ({
+      }
+      else if (page == 'ps_titlescreen') return ({
         title: 'Problem Sleuth Titlescreen',
         pageNum: 'ps_titlescreen',
         thumbnail: 'ps_titlescreen',
@@ -234,22 +256,23 @@ export default {
         title: page,
         pageNum: page,
         url: undefined,
-        thumbnail: undefined
+        thumbnail: undefined,
       })
     },
     secondsToMinutes(time) {
       if (Number.isInteger(time)){
-        const m = Math.floor(time % 3600 / 60)
-        const s = Math.floor(time % 3600 % 60)
+        let m = Math.floor(time % 3600 / 60)
+        let s = Math.floor(time % 3600 % 60)
 
         var mDisplay = m.toString().padStart(2, '0')
         var sDisplay = s.toString().padStart(2, '0')
         return mDisplay + ':' + sDisplay
-      } else return ''
+      }
+      else return ''
     },
     getUTCDate(date){
-      const d = new Date(date)
-      const month = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][d.getUTCMonth()]
+      let d = new Date(date)
+      let month = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][d.getUTCMonth()]
       return `${month} ${d.getUTCDate()}, ${d.getUTCFullYear()}`
     }
   }
@@ -428,3 +451,4 @@ export default {
   }
 }
 </style>
+

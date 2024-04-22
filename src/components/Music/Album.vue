@@ -11,11 +11,20 @@
 
     <div class="nameSection">
       <h2 class="trackTitle">{{album.name}}</h2>
-      <h3 class="byArtist">
+      <h3 class="byArtist" v-if="!isCompilationAlbum">
         by
         <ol class="nameList">
-          <li v-for="name, i in album.artist_names" :key="i" >
-            <a :href="$musicker.getArtistByName(name).uhcLink" v-text="name"/>
+          <li v-for="c, i in album.artist_contribs" :key="i"
+            :set="artist = $musicker.getArtistByName(c.who)">
+            <a :href="artist.uhcLink" v-text="artist.name"/>
+          </li>
+        </ol>
+      </h3>
+      <h3 class="byArtist" v-else-if="compilationArtists.length < 20">
+        compilation by
+        <ol class="nameList">
+          <li v-for="artist, i in compilationArtists" :key="i" >
+            <a :href="artist.uhcLink" v-text="artist.name"/>
           </li>
         </ol>
       </h3>
@@ -31,7 +40,7 @@
 
     <div class="middleColumn">
       <a :href="album.artpath">
-        <Media :url="album.artpath" />
+        <Media :url="album.artpath || 'assets://archive/music/spoiler.png'" />
       </a>
     </div>
 
@@ -45,7 +54,7 @@
         </ol>
       </p>
 
-      <p class="date" v-if="album.date">Released {{album.date}}</p>
+      <p class="date" v-if="album.date">Released {{ album.date.toLocaleDateString([], {month: 'long', day: 'numeric', year: 'numeric'}) }}</p>
 
       <!-- v-if="album.uses_sections" -->
       <div class="albumGroup">
@@ -55,7 +64,17 @@
           </p>
           <ol class="groupList">
             <li v-for="track in track_list" :key="track.directory">
-              <a :href="track.uhcLink" v-text="track.name" />
+              <span v-if='isCompilationAlbum'>
+                <a :href="track.uhcLink" v-text="track.name" />
+                (<a v-if="track.artist_contribs && track.artist_contribs.length == 1"
+                  class="compilationArtist"
+                  :set="artist = $musicker.getArtistByName(track.artist_contribs[0].who) || {}"
+                  :href="artist.uhcLink"
+                  v-text="artist.name" />
+                <span v-else>...</span>)
+
+              </span>
+              <a v-else :href="track.uhcLink" v-text="track.name" />
             </li>
           </ol>
           <br>
@@ -106,6 +125,20 @@ export default {
     }
   },
   computed: {
+    isCompilationAlbum() {
+      return !this.album.artist_contribs
+    },
+    compilationArtists() {
+      const names = [...new Set(
+        this.album.tracks
+        .map(track => track.artist_contribs?.map(c => c.who))
+        .flat()
+        .filter(Boolean)
+      )]
+      names.sort()
+      return names.map(name => this.$musicker.getArtistByName(name))
+        .filter(Boolean)
+    }
   },
   methods: {
     getHostname(href) {
@@ -126,121 +159,9 @@ export default {
 </script>
 
 <style scoped lang="scss">
-.albumPage {
-  font: 13px/1.231 'Helvetica Neue', Helvetica, Arial, sans-serif;
-
-  h2.trackTitle {
-    font: normal 28px/1em 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    margin: -4px 30px 8px 0; /* right margin equal to space between columns */
-    word-wrap: break-word;
-    max-width: 726px;
-  }
-
-  .nameSection {
-    float: left;
-    .byArtist {
-      width: 385px;
-      font: normal 14px/1.25 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    }
-  }
-
-  .nameList, .linkList {
-    display: inline;
-    li { display: inline; }
-    li + li {
-      &:before { content: ", "; }
-    }
-  }
-
-  .nameList {
-    li + li {
-      &:last-of-type:before { content: ", and "; }
-    }
-    li:first-of-type + li {
-      &:last-of-type:before { content: " and "; }
-    }
-  }
-  .linkList {
-    li + li {
-      &:last-of-type:before { content: ", or "; }
-    }
-    li:first-of-type + li {
-      // Odd spacing here with the external link icon
-      &:last-of-type:before { content: "or "; }
-    }
-  }
-
-  .middleColumn {
-    float: right;
-    padding-bottom: 20px;
-    width: 350px;
-    img {
-      outline: 1px solid rgba(0,0,0,0.25);
-      width: 350px;
-    }
-    a::after {
-      content: none;
-    }
-  }
-
-  .info {
-    float: left;
-    width: 376px;
-
-    > ol, > ul, > div, > p, > iframe {
-      margin-top: 16px;
-    }
-    
-    ol, ul {
-      list-style-position: inside;
-      // color: var(--page-links-visited);;
-      &.groupList {
-        margin-left: 20px;
-      }
-    }
-    li {
-      padding: 3px 0;
-      ::v-deep {
-        a {
-          padding-right: 6px;
-        }
-      }
-    }
-
-    .references, .referencedBy {
-      ul {
-        margin-left: 24px;
-      }
-    }
-  }
-  
-  .commentaryContainer {
-    padding-top: 24px;
-    clear: both;
-
-    .commentary {
-      white-space: pre-wrap;
-      background-color: white;
-      color: black;
-      padding: 10px;
-      border: solid 3px grey;
-      ::v-deep {
-        a {
-          color: #0000EE
-        }
-        img {
-          max-width: 100%;
-        }
-        li, ul {
-          list-style-position: inside;
-        }
-      }
-      &.lock {
-        text-align: center;
-        font-weight: bold;
-      }
-    }
-  }
+.compilationArtist {
+  filter: saturate(.4);
+  // color: var(--page-links-visited);
 }
 </style>
 

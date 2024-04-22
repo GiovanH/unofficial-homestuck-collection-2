@@ -27,7 +27,7 @@
             :is="loadedResolvedComponent"
             :data-component="loadedResolvedComponent"
             :tab="tab" 
-            :routeParams="subComponentRouteParams || routeParams"
+            :routeParams="passedRouteParams || routeParams"
             ref="page"
         />
         
@@ -44,8 +44,6 @@ import Bookmarks from '@/components/UIElements/Bookmarks.vue'
 import MediaModal from '@/components/UIElements/MediaModal.vue'
 import JumpBox from '@/components/UIElements/JumpBox.vue'
 import GenericPage from '@/components/UIElements/GenericPage.vue'
-
-import ModBrowserPageMixin from '@/components/CustomContent/ModBrowserPageMixin.vue'
 
 const FindBox = () => import('@/components/UIElements/FindBox.vue')
 
@@ -98,7 +96,6 @@ const PXS = () => import('@/components/Comics/pxs.vue')
 const TSO = () => import('@/components/Comics/tso.vue')
 // import SNAPS from '@/components/Comics/Snaps.vue'
 const SNAPS = () => import('@/components/Comics/Snaps.vue')
-const MSPFADISAMBIG = () => import('@/components/CustomContent/MSPFADisambig.vue')
 
 const TESTS = () => import('@/components/Extras/tests.vue')
 const EDITOR = () => import('@/components/CustomContent/PageEditor.vue')
@@ -115,7 +112,9 @@ const preload_components = [
 ]
 
 const COMPONENT_LOADING = undefined // "GenericPage"
-const COMPONENT_FIRSTLOAD = 'GenericPage'
+
+import ModBrowserPageMixin from '@/components/CustomContent/ModBrowserPageMixin.vue'
+import MSPFADISAMBIG from '@/components/CustomContent/MSPFADisambig.vue'
 
 export default {
     name: 'TabFrame',
@@ -188,13 +187,13 @@ export default {
             gameOverThemeOverride: false, // Set by fullscreenFlash.vue
             modBrowserPages: {},
             lastContentTheme: undefined, // Cache the previous contentTheme for smoother transitions,
-            loadedResolvedComponent: COMPONENT_FIRSTLOAD, // Don't change component until it's loaded so the page "hangs" a second before changing, instead of blanking out.
-            subComponentRouteParams: undefined // Keep routeParams tied to the resolved component so templates don't get unexpected input (e.g. unexpected params from the next, as-of-yet unloaded page component)
+            loadedResolvedComponent: undefined, // Don't change component until it's loaded so the page "hangs" a second before changing, instead of blanking out.
+            passedRouteParams: undefined // Keep routeParams tied to the resolved component so templates don't get unexpected input (e.g. unexpected params from the next, as-of-yet unloaded page component)
         }
     },
     created(){
         for (const COM in this.modBrowserPages) {
-            const mixins = this.modBrowserPages[COM].component.mixins || []
+            let mixins = this.modBrowserPages[COM].component.mixins || []
             if (!mixins.includes(ModBrowserPageMixin)) {
                 mixins.push(ModBrowserPageMixin)
                 this.modBrowserPages[COM].component.mixins = mixins
@@ -225,7 +224,7 @@ export default {
             return (this.loadedResolvedComponent == this.resolveComponent)
         },
         routeParams() {
-            const base = this.tab.url.split('/').filter(Boolean)[0]
+            let base = this.tab.url.split('/').filter(Boolean)[0]
             return  {
                 base: (base || '').toLowerCase(), 
                 ...this.$router.resolve(this.tab.url).route.params
@@ -246,7 +245,7 @@ export default {
             )
         },
         resolveComponent() {
-            const mapRoute = {
+            let mapRoute = {
                 'mspa': 'Page',
                 'jailbreak': 'Page',
                 'bard-quest': 'Page',
@@ -261,7 +260,7 @@ export default {
                 'faqs': 'ExtrasPage',
                 'oilretcon': 'ExtrasPage',
                 'page': 'SinglePage',
-                'mspfa': 'MSPFADisambig'
+                'mspfa': 'MSPFADisambig',
 
             }
     
@@ -293,9 +292,7 @@ export default {
                     //     page_num = this.$vizToMspa(this.routeParams.base, page_num).p
                     // }
 
-                    const isTzPassword = !this.$archive
-                        ? false
-                        : (this.$archive.tweaks.tzPasswordPages.includes(page_num))
+                    const isTzPassword = (this.$archive.tweaks.tzPasswordPages.includes(page_num))
                     
                     if (!(page_num && story_id)) component = 'Error404'
                     else if (this.$pageIsSpoiler(page_num, true) && !isTzPassword) component = 'Spoiler'
@@ -319,18 +316,21 @@ export default {
                 }
                 case 'MUSIC': {
                     if (this.routeParams.mode == 'album') {
-                        if (!(this.routeParams.id in this.$archive.music.albums)) component = 'Error404'
+                        if (!(this.$musicker.getAlbumBySlug(this.routeParams.id))) component = 'Error404'
                         else if (this.$albumIsSpoiler(this.routeParams.id)) component = 'Spoiler'
-                    } else if (this.routeParams.mode == 'track') {
-                        if (!(this.routeParams.id in this.$archive.music.tracks)) component = 'Error404'
+                    }
+                    else if (this.routeParams.mode == 'track') {
+                        if (!(this.$musicker.getTrackBySlug(this.routeParams.id))) component = 'Error404'
                         else if (this.$trackIsSpoiler(this.routeParams.id)) component = 'Spoiler'
-                    } else if (this.routeParams.mode == 'artist') {
-                        if (!(this.routeParams.id in this.$archive.music.artists)) component = 'Error404'
-                    } else if (this.routeParams.mode && !['tracks', 'artists', 'features'].includes(this.routeParams.mode)) component = 'Error404'
+                    }
+                    else if (this.routeParams.mode == 'artist') {
+                        if (!(this.$musicker.getArtistBySlug(this.routeParams.id))) component = 'Error404'
+                    }
+                    else if (this.routeParams.mode && !['tracks', 'artists', 'features'].includes(this.routeParams.mode)) component = 'Error404'
                     break
                 }
                 case 'SBAHJ': {
-                    const num = parseInt(this.routeParams.cid)
+                    let num = parseInt(this.routeParams.cid)
                     if (!num || num < 0 || num > 54 || num == 39) component = 'Error404'
                     break
                 }
@@ -346,9 +346,9 @@ export default {
                 }
                 case 'TSO': {
                     if (this.routeParams.cid) {
-                        const p = parseInt(this.routeParams.pid)
-                        const validComics = this.$archive.comics.tso.list.map(x => typeof (x) === 'object' ? x.list : x).flat()
-                        const data = this.$archive.comics.tso.comics[this.routeParams.cid]
+                        let p = parseInt(this.routeParams.pid)
+                        let validComics = this.$archive.comics.tso.list.map(x => typeof(x) === 'object' ? x.list : x).flat()
+                        let data = this.$archive.comics.tso.comics[this.routeParams.cid]
                         if (this.routeParams.cid && (!validComics.includes(this.routeParams.cid) || !data || !Number.isInteger(p) || data.pages.length < p || p < 1)) component = 'Error404'
                     }
                     break
@@ -356,8 +356,8 @@ export default {
                 case 'SNAPS': {
                     if (this.$isNewReader) component = 'Spoiler'
                     else if (this.routeParams.cid) {
-                        const p = parseInt(this.routeParams.pid)
-                        const data = this.$archive.comics.snaps.comics[this.routeParams.cid]
+                        let p = parseInt(this.routeParams.pid)
+                        let data = this.$archive.comics.snaps.comics[this.routeParams.cid]
                         if (this.routeParams.cid && (!this.$archive.comics.snaps.list.includes(this.routeParams.cid) || !data || !Number.isInteger(p) || data.pages.length < p || p < 1)) component = 'Error404'
                     }
                     break
@@ -376,14 +376,15 @@ export default {
                     else if (this.routeParams.p in this.$archive.mspa.psExtras) {
                         if ((this.routeParams.p == 'ps000039' && this.$pageIsSpoiler('003655')) || (this.routeParams.p == 'ps000040' && this.$pageIsSpoiler('003930'))) component = 'Spoiler'
                         else component = 'ExtrasPage'
-                    } else if (this.routeParams.p) component = 'Error404'
+                    }
+                    else if (this.routeParams.p) component = 'Error404'
                     break
                 }
                 case 'EXTRASPAGE': {
-                    const validBases = ['waywardvagabond', 'faqs', 'oilretcon']
+                    let validBases = ['waywardvagabond', 'faqs', 'oilretcon']
                     if (validBases.includes(this.routeParams.base)) {
                         if (this.routeParams.base == 'waywardvagabond') {
-                            const pages = {
+                            let pages = {
                                 recordsastutteringstep: '002148',
                                 anunsealedtunnel: '002171',
                                 anagitatedfinger: '002339',
@@ -395,9 +396,11 @@ export default {
                             }
                             if (!(this.routeParams.p in pages)) component = 'Error404'
                             else if (this.$pageIsSpoiler(pages[this.routeParams.p])) component = 'Spoiler'
-                        } else if (this.routeParams.base == 'faqs' && !(this.routeParams.p in this.$archive.mspa.faqs)) component = 'Error404'
+                        }
+                        else if (this.routeParams.base == 'faqs' && !(this.routeParams.p in this.$archive.mspa.faqs)) component = 'Error404'
                         else if (this.routeParams.base == 'oilretcon' && this.$pageIsSpoiler('008993')) component = 'Spoiler'
-                    } else component = 'Error404'
+                    }
+                    else component = 'Error404'
                     break
                 }
                 case 'NAMCOHIGH': {
@@ -407,12 +410,11 @@ export default {
                 }
                 case "DECODE":
                     if (this.routeParams.mode) {
-                    if (!['morse', 'alternian', 'damaramegido'].includes(this.routeParams.mode)) component = 'Error404'
+                    if (!['morse','alternian','damaramegido'].includes(this.routeParams.mode)) component ='Error404'
                     if (
                         (this.routeParams.mode === 'alternian' && this.$pageIsSpoiler('003890')) ||
                         (this.routeParams.mode === 'damaramegido' && this.$pageIsSpoiler('007298'))
-                        )
-                        component = 'Spoiler'
+                    ) component = 'Spoiler'
                     }
                     break
                 case 'BLOGSPOT': {
@@ -443,9 +445,9 @@ export default {
                 }
             }
             
-            const result = 
-                (component.toUpperCase() in this.$options.components) ||
-                (component.toUpperCase() in this.modBrowserPages)
+            let result = 
+                (component.toUpperCase() in this.$options.components)
+                || (component.toUpperCase() in this.modBrowserPages)
                 ? component.toUpperCase() 
                 : 'ERROR404'
             return result
@@ -474,8 +476,8 @@ export default {
         },
         theme() {
             // Get the actual displayed theme, factoring in settings.
-            const page_theme = this.contentTheme || 'default'
-            const set_theme = this.$localData.settings.themeOverride
+            let page_theme = this.contentTheme || 'default'
+            let set_theme = this.$localData.settings.themeOverride
             let theme = page_theme
 
             if (set_theme != 'default') {
@@ -500,7 +502,7 @@ export default {
     },
     methods: {
         reload() {
-            // const u = this.tab.url
+            const u = this.tab.url
             const component = this.loadedResolvedComponent
             this.loadedResolvedComponent = "GenericPage"
             this.$nextTick(function () {
@@ -571,10 +573,7 @@ export default {
         openModal(url) {
             this.$refs.modal.open(url)
         },
-        onFinishNavigate() {
-            this.setTitle()
-        },
-        setTitle() {
+        setTitle(){
             // you would not believe how bad this used to be
             let title
 
@@ -582,7 +581,7 @@ export default {
 
             if (!componentObj) {
                 // Component object isn't import-loaded, use cached title.
-                return
+                return;
             }
 
             if (componentObj.title) {
@@ -612,21 +611,21 @@ export default {
                 // Iframes kept freezing content after switching tabs. Presumably they thought they were supposed to be inactive?
                 // Easiest hack I found to get them moving again was to force the browser to redraw them. I apologise for nothing. 
                 this.$el.style.borderTop = 'solid 1px #000000FF'
-                setTimeout(() => {
+                setTimeout(() =>{
                     this.$el.style.borderTop = ''
                 }, 10)
             }
         },
         'loadedResolvedComponent'(to, from) {
             // Component and url changes
-            this.onFinishNavigate()
-            this.subComponentRouteParams = this.routeParams
+            this.setTitle()
+            this.passedRouteParams = this.routeParams
         },
         'tab.url'(to, from) {
             if (this.isComponentLoaded) {
                 // If componentObj still points to the old component,
                 // don't try to call setTitle with the new url params!
-                this.onFinishNavigate()
+                this.setTitle()
             }
             // Has the component loaded yet? If not, clean screen.
             if (COMPONENT_LOADING && !this.isComponentLoaded) {
@@ -643,13 +642,13 @@ export default {
         'routeParams'(to, from) {
             // If the route params change without the component changing, update the component too. Otherwise wait for the component.
             if (this.isComponentLoaded) {
-                this.subComponentRouteParams = this.routeParams
+                this.passedRouteParams = this.routeParams
             }
         }
     },
     mounted(){
         this.setTitle()
-        if (!window.isWebApp) {
+        if (!isWebApp) {
             // Object.values(this.$options.components)
             preload_components
                 .filter(v => (typeof v == "function"))
