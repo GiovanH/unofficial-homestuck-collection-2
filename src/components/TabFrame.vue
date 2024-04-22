@@ -316,12 +316,14 @@ export default {
                 }
                 case 'MUSIC': {
                     if (this.routeParams.mode == 'album') {
-                        if (!(this.$musicker.getAlbumBySlug(this.routeParams.id))) component = 'Error404'
-                        else if (this.$albumIsSpoiler(this.routeParams.id)) component = 'Spoiler'
+                        const album = this.$musicker.getAlbumBySlug(this.routeParams.id)
+                        if (!album) component = 'Error404'
+                        else if (this.$albumIsSpoiler(album)) component = 'Spoiler'
                     }
                     else if (this.routeParams.mode == 'track') {
-                        if (!(this.$musicker.getTrackBySlug(this.routeParams.id))) component = 'Error404'
-                        else if (this.$trackIsSpoiler(this.routeParams.id)) component = 'Spoiler'
+                        const track = this.$musicker.getTrackBySlug(this.routeParams.id)
+                        if (!track) component = 'Error404'
+                        else if (this.$trackIsSpoiler(track)) component = 'Spoiler'
                     }
                     else if (this.routeParams.mode == 'artist') {
                         if (!(this.$musicker.getArtistBySlug(this.routeParams.id))) component = 'Error404'

@@ -401,44 +401,65 @@ Vue.mixin({
     },
     $trackIsSpoiler(track) {
       // FIXME: Implement for hsmusic
-      return false
-      if (this.$isNewReader && ref in this.$archive.music.tracks) {
-        const track = this.$archive.music.tracks[ref]
-        // Try to find a single linked page or album that isn't a spoiler. If we can't, block it.
-        // if it's referenced by an unreleased track, that's not good enough. it has to be reference that unreleased track *itself* 
-        // From the unreleased track's perspective: if it's referenced by a known track, it's ok. Whether or not it references a known track shouldn't affect it.
+      if (!this.$isNewReader) return false
+
+      if (!track.directory) {
+        throw Error(`$trackIsSpoiler must be passed a hsmusic track thing object`)
+      }
+      if (track.date) {
+        return this.$timestampIsSpoiler(track.date.getTime() / 1000)
+      } else {
+        this.$logger.warn("No implemented spoilercheck for", track.directory)
+        return true
+      }
+      // if (this.$isNewReader && ref in this.$archive.music.tracks) {
+      //   const track = this.$archive.music.tracks[ref]
+      //   // Try to find a single linked page or album that isn't a spoiler. If we can't, block it.
+      //   // if it's referenced by an unreleased track, that's not good enough. it has to be reference that unreleased track *itself*
+      //   // From the unreleased track's perspective: if it's referenced by a known track, it's ok. Whether or not it references a known track shouldn't affect it.
         
-        return !(
-          (track.pages && track.pages.find(page => !this.$pageIsSpoiler(page))) ||
-          (track.album && track.album.find(album => {
-            if (album == 'unreleased-tracks' && track.referencedBy) {
-              return track.referencedBy.find(track => !this.$trackIsSpoiler(track))
-            } else return !this.$albumIsSpoiler(album)
-          }))
-        )
-      } else return false
+      //   return !(
+      //     (track.pages && track.pages.find(page => !this.$pageIsSpoiler(page))) ||
+      //     (track.album && track.album.find(album => {
+      //       if (album == 'unreleased-tracks' && track.referencedBy) {
+      //         return track.referencedBy.find(track => !this.$trackIsSpoiler(track))
+      //       } else return !this.$albumIsSpoiler(album)
+      //     }))
+      //   )
+      // } else return false
     },
     $albumIsSpoiler(album) {
       // FIXME: Implement for hsmusic
-      return false
-      if (this.$isNewReader && ref in this.$archive.music.albums && this.$archive.music.albums[ref].date) {
-        // It's a spoiler if it belongs to an album with a more recent timestamp than the current page
-        let date
+      if (!this.$isNewReader) return false
 
-        if (ref == 'homestuck-vol-1') date = this.$archive.mspa.story['002340'].timestamp // During third Rose GameFAQs, after Nanna expodump
-        else if (ref == 'homestuck-vol-5') date = this.$archive.mspa.story['003841'].timestamp // Curtains after [S] Descend
-        else if (ref == 'homestuck-vol-6') date = this.$archive.mspa.story['005127'].timestamp // During LE/Recap 3 Huss interruption
-        else if (ref == 'song-of-skaia') date = this.$archive.mspa.story['006291'].timestamp // Immediately after EOA6I1
-        else if (ref == 'colours-and-mayhem-universe-b') date = this.$archive.mspa.story['006716'].timestamp // Immediately after DOTA, before EOY3 shown
-        else if (ref == 'homestuck-vol-9') date = this.$archive.mspa.story['006928'].timestamp // After Terry: FF to Liv, before cherub chess
-        else if (ref == 'symphony-impossible-to-play') date = this.$archive.mspa.story['007162'].timestamp // Just after Caliborn: Enter, before openbound 1
-        else if (ref == 'one-year-older') date = this.$archive.mspa.story['007162'].timestamp // Just after Caliborn: Enter, before openbound 1
-        else if (ref == 'cherubim') date = this.$archive.mspa.story['007882'].timestamp // After Interfishin, right when Caliborn/Calliope expodump begins
+      if (!album.directory) {
+        throw Error(`$albumIsSpoiler must be passed a hsmusic album thing object`)
+      }
+      if (album.date) {
+        return this.$timestampIsSpoiler(album.date.getTime() / 1000)
+      } else {
+        this.$logger.warn("No implemented spoilercheck for", album.directory)
+        return true
+      }
+      // return false
+      // if (this.$isNewReader && ref in this.$archive.music.albums && this.$archive.music.albums[ref].date) {
+      //   // It's a spoiler if it belongs to an album with a more recent timestamp than the current page
+      //   let date
 
-        else date = new Date(this.$archive.music.albums[ref].date).getTime()/1000
-        this.$logger.debug(ref, this.$archive.mspa.story['006716'].timestamp)
-        return date > this.$archive.mspa.story[this.$newReaderCurrent].timestamp
-      } else return false
+      //   if (ref == 'homestuck-vol-1') date = this.$archive.mspa.story['002340'].timestamp // During third Rose GameFAQs, after Nanna expodump
+      //   else if (ref == 'homestuck-vol-5') date = this.$archive.mspa.story['003841'].timestamp // Curtains after [S] Descend
+      //   else if (ref == 'homestuck-vol-6') date = this.$archive.mspa.story['005127'].timestamp // During LE/Recap 3 Huss interruption
+      //   else if (ref == 'song-of-skaia') date = this.$archive.mspa.story['006291'].timestamp // Immediately after EOA6I1
+      //   else if (ref == 'colours-and-mayhem-universe-b') date = this.$archive.mspa.story['006716'].timestamp // Immediately after DOTA, before EOY3 shown
+      //   else if (ref == 'homestuck-vol-9') date = this.$archive.mspa.story['006928'].timestamp // After Terry: FF to Liv, before cherub chess
+      //   else if (ref == 'symphony-impossible-to-play') date = this.$archive.mspa.story['007162'].timestamp // Just after Caliborn: Enter, before openbound 1
+      //   else if (ref == 'one-year-older') date = this.$archive.mspa.story['007162'].timestamp // Just after Caliborn: Enter, before openbound 1
+      //   else if (ref == 'cherubim') date = this.$archive.mspa.story['007882'].timestamp // After Interfishin, right when Caliborn/Calliope expodump begins
+
+      //   else date = new Date(this.$archive.music.albums[ref].date).getTime()/1000
+      //   this.$logger.debug(ref, this.$archive.mspa.story['006716'].timestamp)
+      //   return date > this.$archive.mspa.story[this.$newReaderCurrent].timestamp
+      // } else return false
     }
   } 
 })

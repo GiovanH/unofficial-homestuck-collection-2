@@ -67,6 +67,7 @@
       </div>
 
       <!--
+        TODO featuredin
       <div class="featuredIn" v-if="linkPages">Pages that feature <i>{{track.name}}</i>:
         <ul>
           <li v-for="page in linkPages" v-html="page"/>
@@ -88,12 +89,15 @@
       </div>
 
       <!--
+        TODO referencedBy
       <div class="referencedBy" v-if="track.referencedBy && track.referencedBy.length > 0">Tracks that reference <i>{{track.name}}</i>:
         <ul>
           <li v-for="reference in track.referencedBy" v-html="linkReference(reference)"/>
         </ul>
       </div> -->
     </div>
+
+    <!-- TODO features -->
 
     <div v-if="track.commentary" class="commentaryContainer">
       <p class="commentaryHeader">Track Commentary:</p>

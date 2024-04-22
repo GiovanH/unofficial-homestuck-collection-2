@@ -13,7 +13,7 @@
       <div class="album" v-for="group in creditGroups" :key="group.album.directory">
         <!-- <div class="thumbnail" v-if="group.album.artpath"> -->
         <div class="thumbnail">
-          <a v-if="group.album.directory && !$albumIsSpoiler(group.album.directory)" :href="`/music/album/${group.album.directory}`" class="coverArt">
+          <a v-if="group.album.directory && !$albumIsSpoiler(group.album)" :href="`/music/album/${group.album.directory}`" class="coverArt">
             <img :src="group.album.artpath || 'assets://archive/music/spoiler.png'" />
           </a>
           <div v-else class="coverArt">
@@ -22,7 +22,7 @@
           <p class="date" v-if="group.album.date" v-text="group.album.date.toLocaleDateString([], {month: 'long', day: 'numeric', year: 'numeric'})" />
         </div>
         <div>
-          <a :href="group.album.uhcLink" v-if="group.album.directory && !$albumIsSpoiler(group.album.directory)">
+          <a :href="group.album.uhcLink" v-if="group.album.directory && !$albumIsSpoiler(group.album)">
             <h2 class="trackTitle" v-text="group.album.name" />
           </a>
           <h2 class="trackTitle" v-else>??????</h2>
@@ -30,7 +30,8 @@
           <div class="credits">
             <div class="musicList">
               <li v-for="credit, i in group.credits" :key="i">
-                <a :href="credit.whatlink" v-text="credit.what" />
+                <a v-if="!$trackIsSpoiler(credit.track)" :href="credit.track.uhcLink" v-text="credit.what" />
+                <span v-else>??????</span>
               </li>
             </div>
             <!--
@@ -85,7 +86,7 @@ export default {
             if (this.artist.name == who) {
               creditGroup.credits.push({
                 what: (what ? `${track.name} (${what})` : track.name),
-                whatlink: track.uhcLink
+                track: track
               })
             }
           }

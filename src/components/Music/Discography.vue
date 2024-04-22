@@ -1,22 +1,23 @@
 <template>
   <div class="discographyPage">
     <div class="trackography" v-if="mode == 'tracks'">
-      <div class="album" v-for="album in allAlbumsSorted" :key="album.directory">
+      <div class="album" v-for="album in filteredSortedAlbums" :key="album.directory">
         <div class="thumbnail">
-          <a v-if="!album.isSpoiler" :href="album.artpath" class="coverArt">
-            <Media :url="album.artpath || 'assets://archive/music/spoiler.png'" />
-          </a>
-          <div v-else class="coverArt">
+          <div v-if="album.directory == 'TEASER'" class="coverArt">
             <Media url="/archive/music/spoiler.png" />
           </div>
+          <a v-else :href="album.artpath" class="coverArt">
+            <Media :url="album.artpath || 'assets://archive/music/spoiler.png'" />
+          </a>
           <p v-if="album.date" class="date" v-text="album.date.toLocaleDateString([], {month: 'long', day: 'numeric', year: 'numeric'})" />
         </div>
         <div>
-          <a :href="album.uhcLink" v-if="!album.isSpoiler">
-            <h2 class="trackTitle">{{album.name}}</h2></a>
-            <h2 class="trackTitle" v-else>??????</h2>
-          <ol>
-            <li v-for="track in album.tracks">
+          <h2 class="trackTitle" v-if="album.directory == 'TEASER'">??????</h2>
+          <a :href="album.uhcLink" v-else>
+            <h2 class="trackTitle">{{album.name}}</h2>
+          </a>
+          <ol v-if="album.directory != 'TEASER'">
+            <li v-for="track in album.tracks" :key="track.directory">
               <a :href="track.uhcLink" v-text="track.name" />
               <span v-if="track.artist_contribs && track.artist_contribs.length == 1"> - <a
                   class="compilationArtist"
@@ -26,6 +27,7 @@
                 </span>
             </li>
           </ol>
+          <span v-else>Keep reading to unlock!</span>
         </div>
       </div>
     </div>
@@ -58,28 +60,16 @@
     <div class="discography" v-else>
       <button class="reverseButton" @click="reverseDiscography = !reverseDiscography">Reverse Order</button><br>
       <div class="albums">
-        <!-- TODO spoilers -->
-        <!-- <div class="album" v-if="discographySorted.length < Object.keys($archive.music.albums).length && !reverseDiscography">
-          <div>
+        <div class="album" v-for="album in filteredSortedAlbums" :key="album.directory">
+          <div v-if="album.directory == 'TEASER'">
             <Media class="art" url="/archive/music/spoiler.png" width="350" />
             <p class="title">Keep reading to unlock!</p>
           </div>
-        </div> -->
-        <div class="album" v-for="album in discographySorted" :key="album.directory">
-          <a :href="album.uhcLink">
+          <a v-else :href="album.uhcLink">
             <img class="art" :src="album.artpath || 'assets://archive/music/spoiler.png'" width="350" />
             <p class="title" v-text="album.name" />
-            <p class="date" v-text="album.date.toLocaleDateString([], {month: 'long', day: 'numeric', year: 'numeric'})" />
-            <!-- <span class="artistOverride" v-if="album.artists && album.artists[0] != 'homestuck'">
-              {{joinNoOxford(album.artists.map(artist=>$archive.music.artists[artist.who].name))}}
-            </span> -->
+            <p class="date" v-if="album.date" v-text="album.date.toLocaleDateString([], {month: 'long', day: 'numeric', year: 'numeric'})" />
           </a>
-        </div>
-        <div class="album" v-if="discographySorted.length < Object.keys($archive.music.albums).length && reverseDiscography">
-          <div>
-            <Media class="art" url="/archive/music/spoiler.png" width="350" />
-            <p class="title">Keep reading to unlock!</p>
-          </div>
         </div>
       </div>
     </div>
@@ -103,35 +93,6 @@ export default {
     }
   },
   computed: {
-    allAlbumsSorted() {
-      var all_albums = Object.values(this.$musicker.all_albums)
-        .filter(a => a.directory != 'references-beyond-homestuck')
-      all_albums.sort((a, b) => a.date - b.date)
-      return all_albums
-    },
-    trackographySorted() {
-      // Always send unreleased-tracks to the bottom of the list. Otherwise, sort in chronological order of release
-      let keys = Object.keys(this.$archive.music.albums).sort((key1, key2) => {
-        if (key1 == 'unreleased-tracks') return 1
-        else if (key2 == 'unreleased-tracks') return -1
-        else return new Date(this.$archive.music.albums[key1].date) - new Date(this.$archive.music.albums[key2].date)
-      })
-      
-      let result = []
-      keys.forEach(key => {
-        let directory = key
-        let isSpoiler = this.$albumIsSpoiler(key)
-        let tracks = []
-        let isValidAlbum = false
-        this.$archive.music.albums[key].tracks.forEach(track => {
-          let linkedTrack = this.linkTrack(track)
-          if (!isValidAlbum && !linkedTrack.includes('>??????<')) isValidAlbum = true
-          tracks.push(linkedTrack)
-        })
-        if (isValidAlbum) result.push({directory, isSpoiler, tracks})
-      })
-      return result
-    },
     artistographySorted() {
       let artist_list = [...Object.values(this.$musicker.all_artists)]
       // TODO: Filter artists who are only in external references
@@ -174,14 +135,23 @@ export default {
       }
       return result
     },
-    discographySorted() {
-      // Sort in reverse-chronological order of release.
-      // let keys = Object.keys(this.$archive.music.albums).filter(album => !this.$albumIsSpoiler(album))
-      // let sorted = keys.sort((key1, key2) => new Date(this.$archive.music.albums[key2].date) - new Date(this.$archive.music.albums[key1].date))
-      var all_albums = Object.values(this.$musicker.all_albums)
-      all_albums.sort((a, b) => a.date - b.date)
+    filteredAlbums() {
+      const all_albums = Object.values(this.$musicker.all_albums)
+      const filtered_albums = all_albums
+        .filter(a => !this.$albumIsSpoiler(a))
+        .filter(a => a.directory != 'references-beyond-homestuck')
 
-      return this.reverseDiscography ? all_albums.toReversed() : all_albums
+      filtered_albums.sort((a, b) => a.date - b.date)
+      if (filtered_albums.length < all_albums.length) {
+        filtered_albums.push({directory: 'TEASER'})
+      }
+
+      return filtered_albums
+    },
+    filteredSortedAlbums() {
+      return this.reverseDiscography
+       ? this.filteredAlbums.toReversed()
+       : this.filteredAlbums
     }
   },
   methods: {
@@ -208,24 +178,14 @@ export default {
       })
     },
     linkReference(reference) {
-      if (this.$trackIsSpoiler(reference)) {
+      const track = this.$musicker.getTrackBySlug(reference)
+      if (!track || this.$trackIsSpoiler(track)) {
         return '??????'
       }
       else if (reference in this.$archive.music.tracks) {
         return `<a href="/music/track/${this.$archive.music.tracks[reference].directory}">${this.$archive.music.tracks[reference].name}</a> <i>by ${this.joinNoOxford(this.linkArtists(this.$archive.music.tracks[reference].artists))}</i>`
       }
       else return reference
-    },
-    linkTrack(dir) {
-      if (this.$trackIsSpoiler(dir)) return '<span class="spoiler">??????</span>'
-      if (dir in this.$archive.music.tracks) {
-        let track = this.$archive.music.tracks[dir]
-        let href = `/music/track/${track.directory}`
-        let duration = track.duration ? `<span class="duration">${this.secondsToMinutes(track.duration)}</span>`: ''
-        let html = `<a href="${href}">${track.name}</a>${duration}`
-        return html
-      }
-      else return dir 
     },
     getPage(page){
       if (page in this.$archive.mspa.story) {
@@ -258,22 +218,6 @@ export default {
         url: undefined,
         thumbnail: undefined,
       })
-    },
-    secondsToMinutes(time) {
-      if (Number.isInteger(time)){
-        let m = Math.floor(time % 3600 / 60)
-        let s = Math.floor(time % 3600 % 60)
-
-        var mDisplay = m.toString().padStart(2, '0')
-        var sDisplay = s.toString().padStart(2, '0')
-        return mDisplay + ':' + sDisplay
-      }
-      else return ''
-    },
-    getUTCDate(date){
-      let d = new Date(date)
-      let month = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][d.getUTCMonth()]
-      return `${month} ${d.getUTCDate()}, ${d.getUTCFullYear()}`
     }
   }
 }
