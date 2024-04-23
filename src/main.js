@@ -400,43 +400,42 @@ Vue.mixin({
       )
     },
     $trackIsSpoiler(track) {
-      // FIXME: Implement for hsmusic
       if (!this.$isNewReader) return false
 
-      if (!track.directory) {
+      if (!track || !track.directory) {
         throw Error(`$trackIsSpoiler must be passed a hsmusic track thing object`)
       }
+
+      if (track.album.directory == 'references-beyond-homestuck') {
+        // TODO: If a song that references this song is visible, so is this
+        const referenced_by = this.$musicker.referenced_by[track.name]
+        if (!referenced_by) return true
+
+        const any_is_not_spoiler = referenced_by.some(ref => !this.$trackIsSpoiler(
+            this.$musicker.thingFromReference(ref)
+          )
+        )
+        return !any_is_not_spoiler
+      }
+
       if (track.date) {
         return this.$timestampIsSpoiler(track.date.getTime() / 1000)
       } else {
-        this.$logger.warn("No implemented spoilercheck for", track.directory)
+        this.$logger.warn("No implemented spoilercheck for", track.album.directory, track.directory)
         return true
       }
-      // if (this.$isNewReader && ref in this.$archive.music.tracks) {
-      //   const track = this.$archive.music.tracks[ref]
-      //   // Try to find a single linked page or album that isn't a spoiler. If we can't, block it.
-      //   // if it's referenced by an unreleased track, that's not good enough. it has to be reference that unreleased track *itself*
-      //   // From the unreleased track's perspective: if it's referenced by a known track, it's ok. Whether or not it references a known track shouldn't affect it.
-        
-      //   return !(
-      //     (track.pages && track.pages.find(page => !this.$pageIsSpoiler(page))) ||
-      //     (track.album && track.album.find(album => {
-      //       if (album == 'unreleased-tracks' && track.referencedBy) {
-      //         return track.referencedBy.find(track => !this.$trackIsSpoiler(track))
-      //       } else return !this.$albumIsSpoiler(album)
-      //     }))
-      //   )
-      // } else return false
     },
     $albumIsSpoiler(album) {
-      // FIXME: Implement for hsmusic
       if (!this.$isNewReader) return false
 
-      if (!album.directory) {
+      if (!album || !album.directory) {
         throw Error(`$albumIsSpoiler must be passed a hsmusic album thing object`)
       }
       if (album.date) {
         return this.$timestampIsSpoiler(album.date.getTime() / 1000)
+      } else if (['unreleased-tracks', 'references-beyond-homestuck', 'more-homestuck-fandom'].includes(album.directory)) {
+        // Known albums that can have OK tracks in them
+        return false
       } else {
         this.$logger.warn("No implemented spoilercheck for", album.directory)
         return true

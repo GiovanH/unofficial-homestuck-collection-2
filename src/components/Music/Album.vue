@@ -56,27 +56,12 @@
 
       <p class="date" v-if="album.date">Released {{ album.date.toLocaleDateString([], {month: 'long', day: 'numeric', year: 'numeric'}) }}</p>
 
-      <!-- v-if="album.uses_sections" -->
       <div class="albumGroup">
         <div class="albumGroup" v-for="[section_name, track_list] in Object.entries(album.track_sections)" :key="section_name">
           <p v-if="section_name != 'Unsorted'">
             <em>{{section_name}}:</em>
           </p>
-          <ol class="groupList">
-            <li v-for="track in track_list" :key="track.directory">
-              <span v-if='isCompilationAlbum'>
-                <a :href="track.uhcLink" v-text="track.name" />
-                (<a v-if="track.artist_contribs && track.artist_contribs.length == 1"
-                  class="compilationArtist"
-                  :set="artist = $musicker.getArtistByName(track.artist_contribs[0].who) || {}"
-                  :href="artist.uhcLink"
-                  v-text="artist.name" />
-                <span v-else>...</span>)
-
-              </span>
-              <a v-else :href="track.uhcLink" v-text="track.name" />
-            </li>
-          </ol>
+          <TrackList ordered :thinglist="track_list" :iscompilation="isCompilationAlbum" />
           <br>
         </div>
       </div>
@@ -109,6 +94,7 @@
 
 <script>
 import Media from '@/components/UIElements/MediaEmbed.vue'
+import TrackList from '@/components/Music/TrackList.vue'
 import Resources from '@/resources.js'
 
 export default {
@@ -118,7 +104,7 @@ export default {
     'album'
   ],
   components: {
-    Media
+    Media, TrackList
   },
   data: function() {
     return {
@@ -157,11 +143,4 @@ export default {
   }
 }
 </script>
-
-<style scoped lang="scss">
-.compilationArtist {
-  filter: saturate(.4);
-  // color: var(--page-links-visited);
-}
-</style>
 

@@ -290,11 +290,16 @@ export default {
     }
     li {
       padding: 3px 0;
-      ::v-deep {
-        a {
-          padding-right: 6px;
-        }
-      }
+      // ::v-deep {
+      //   a {
+      //     padding-right: 6px;
+      //   }
+      // }
+    }
+
+    .bonusItems ul {
+      list-style-position: inherit;
+      padding-left: 1em;
     }
 
     .references, .referencedBy {
@@ -378,6 +383,9 @@ export default {
       .credits {
         >:not(:last-child) {
           margin-bottom: 10px;
+        }
+        .credit-what {
+          font-style: italic;
         }
         ul {
           list-style-position: inside;

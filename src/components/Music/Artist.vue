@@ -10,7 +10,8 @@
         </ol>
       </p>
     <div class="trackography" >
-      <div class="album" v-for="group in creditGroups" :key="group.album.directory">
+      <div class="album" v-for="group in creditGroups" :key="group.album.directory"
+          :class="{'teaser': $albumIsSpoiler(group.album)}">
         <!-- <div class="thumbnail" v-if="group.album.artpath"> -->
         <div class="thumbnail">
           <a v-if="group.album.directory && !$albumIsSpoiler(group.album)" :href="`/music/album/${group.album.directory}`" class="coverArt">
@@ -28,12 +29,17 @@
           <h2 class="trackTitle" v-else>??????</h2>
 
           <div class="credits">
-            <div class="musicList">
-              <li v-for="credit, i in group.credits" :key="i">
-                <a v-if="!$trackIsSpoiler(credit.track)" :href="credit.track.uhcLink" v-text="credit.what" />
+            <ul class="musicList">
+              <li v-for="credit, i in group.credits" :key="i"
+                :class="{'teaser': $trackIsSpoiler(credit.track)}">
+                <span v-if="!$trackIsSpoiler(credit.track)">
+                  <a :href="credit.track.uhcLink" v-text="credit.track.name" />
+                  <span class="credit-what" v-if="credit.what"> ({{ credit.what }})</span>
+                </span>
+
                 <span v-else>??????</span>
               </li>
-            </div>
+            </ul>
             <!--
             TODO: teasers for spoiler tracks
             <div class="spoiler" v-if="!group.album.directory">
@@ -69,54 +75,10 @@ export default {
     creditGroups() {
       // Return a list of credit groups, grouped by album
       // [{credits: [{what, whatlink}...], album: album}...]
-      var creditGroups = []
-
-      var all_albums = Object.values(this.$musicker.all_albums)
-      all_albums.sort((a, b) => a.date - b.date)
-
-      for (const album of all_albums) {
-        const creditGroup = {
-          credits: [],
-          album
-        }
-        for (const track of album.tracks) {
-          // Main artist contributions
-          for (const {who, what} of track.all_contributors) {
-            // if (this.artist.equals(this.$musicker.getArtistByName(who))) {
-            if (this.artist.name == who) {
-              creditGroup.credits.push({
-                what: (what ? `${track.name} (${what})` : track.name),
-                track: track
-              })
-            }
-          }
-        }
-        if (creditGroup.credits.length > 0) {
-          creditGroups.push(creditGroup)
-        }
-      }
-
-      // let filteredAlbums = Object.values(this.$musicker.all_albums)
-      //   .filter(album => {
-      //     if (this.$albumIsSpoiler(album.directory)) {
-      //       let isValidAlbum = false
-      //       album.tracks.forEach(track => {
-      //         if (!this.$trackIsSpoiler(track.directory)) isValidAlbum = true
-      //       })
-      //       // album.art.forEach(track => {
-      //       //   if (!this.$trackIsSpoiler(track.track)) isValidAlbum = true
-      //       // })
-      //       return isValidAlbum
-      //     } else {
-      //       return true
-      //     }
-      //   })
-      // if (filteredAlbums.length < this.artist.credits.length) {
-      //   filteredAlbums.push({})
-      // }
-      // filteredAlbums.sort((a, b) => a.timestamp - b.timestamp)
-      return creditGroups
-      // return filteredAlbums
+      return this.$musicker.creditGroupsForArtistInAlbums(
+        this.$musicker.all_albums_sorted,
+        this.artist
+      )
     },
     // linkAndJoinExternalMusic() {
     //   let sources = this.artist.urls.map(url =>`<a href="${url}">${
@@ -159,6 +121,15 @@ export default {
 </script>
 
 <style scoped lang="scss">
-
+ul {
+  .teaser + .teaser {
+    display: none;
+  }
+}
+.trackography {
+  .album.teaser + .album.teaser {
+    display: none;
+  }
+}
 </style>
 

@@ -48,8 +48,9 @@ function getKebabCase(name) {
     .toLowerCase();
 }
 
+const contribstring_regex = /(?<who>.+) \((?<what>.+)\)/
 function decomposeContribString(contribstring, default_role) {
-  const split_contrib = /(?<who>.+) \((?<what>.+)\)/.exec(contribstring)
+  const split_contrib = contribstring_regex.exec(contribstring)
   if (split_contrib) {
     const {who, what} = split_contrib.groups
     return {
@@ -65,7 +66,8 @@ function decomposeContribString(contribstring, default_role) {
 }
 
 function mapContribString(set, default_role) {
-  return set?.map(cs => decomposeContribString(cs, default_role))
+  if (!set) return set
+  return set.map(cs => decomposeContribString(cs, default_role))
 }
 
 function thingByName(thing_reg, name) {
@@ -90,6 +92,19 @@ function dateOrUndef(input) {
   }
 }
 
+function defineLazyPrototypeProperty(constructor, key, fn) {
+  const cache = new WeakMap()
+
+  Object.defineProperty(constructor.prototype, key, {
+    get() {
+      if (!cache.has(this)) {
+        cache.set(this, fn.call(this))
+      }
+      return cache.get(this)
+    }
+  })
+}
+
 class Thing {
   constructor(def) {
     this.def = def
@@ -104,6 +119,7 @@ class Thing {
     }
   }
 
+  get reference() { return `${this.index_name}:${this.directory}` }
   get directory() { return this.def['Directory'] || getKebabCase(this.name) }
 
   equals(other) {
@@ -152,9 +168,9 @@ class Album extends Thing {
 
   get date() { return dateOrUndef(this.def['Date']) }
 
-  get artist_contribs() { return mapContribString(this.def['Artists']) }
-  get cover_artist_contribs() { return mapContribString(this.def['Cover Artists'], 'cover art') }
-  get contributor_contribs() { return mapContribString(this.def['Contributors']) }
+  // get artist_contribs() { return mapContribString(this.def['Artists']) }
+  // get cover_artist_contribs() { return mapContribString(this.def['Cover Artists'], 'cover art') }
+  // get contributor_contribs() { return mapContribString(this.def['Contributors'], 'contributions') }
 
   get all_contributors() {
     return [
@@ -179,6 +195,9 @@ class Album extends Thing {
   }
 }
 Album.prototype.index_name = 'album'
+defineLazyPrototypeProperty(Album, 'artist_contribs', function() { return mapContribString(this.def['Artists']) })
+defineLazyPrototypeProperty(Album, 'cover_artist_contribs', function() { return mapContribString(this.def['Cover Artists'], 'cover art') })
+defineLazyPrototypeProperty(Album, 'contributor_contribs', function() { return mapContribString(this.def['Contributors'], 'contributions') })
 
 class Track extends Thing {
   constructor(def, album) {
@@ -193,20 +212,20 @@ class Track extends Thing {
 
   get date() { return (this.def['Date'] ? dateOrUndef(this.def['Date']) : this.album.date) }
 
-  get artist_contribs() {
-    return mapContribString(this.def['Artists']) ||
-    this.album.artist_contribs
-  }
+  // get artist_contribs() {
+  //   return mapContribString(this.def['Artists']) ||
+  //   this.album.artist_contribs
+  // }
 
-  get cover_artist_contribs() {
-    return mapContribString(this.def['Cover Artists'], 'cover art') ||
-      this.album.cover_artist_contribs
-  }
+  // get cover_artist_contribs() {
+  //   return mapContribString(this.def['Cover Artists'], 'cover art') ||
+  //     this.album.cover_artist_contribs
+  // }
 
-  get contributor_contribs() {
-    return mapContribString(this.def['Contributors']) ||
-      this.album.contributor_contribs
-  }
+  // get contributor_contribs() {
+  //   return mapContribString(this.def['Contributors']) ||
+  //     this.album.contributor_contribs
+  // }
 
   get all_contributors() {
     return [
@@ -239,6 +258,18 @@ class Track extends Thing {
   }
 }
 Track.prototype.index_name = 'track'
+defineLazyPrototypeProperty(Track, 'artist_contribs', function() {
+  return mapContribString(this.def['Artists']) ||
+    this.album.artist_contribs
+})
+defineLazyPrototypeProperty(Track, 'cover_artist_contribs', function() {
+  return mapContribString(this.def['Cover Artists'], 'cover art') ||
+    this.album.cover_artist_contribs
+})
+defineLazyPrototypeProperty(Track, 'contributor_contribs', function() {
+  return mapContribString(this.def['Contributors'], 'contributions') ||
+    this.album.contributor_contribs
+})
 
 class Musicker {
   constructor(hsmusic, archive_music) {
@@ -246,14 +277,6 @@ class Musicker {
 
     this.hsmusic = hsmusic
     this.archive_music = archive_music
-
-    this.all_artists = Object.fromEntries(
-      this.hsmusic.artists
-      .map(artistdef => new Artist(artistdef))
-      .map(thing => [thing.directory, thing])
-    )
-
-    this.all_flashdefs = this.hsmusic.flashes
 
     const musicker = this
 
@@ -265,11 +288,6 @@ class Musicker {
       get commentary() { return musicker.processText(this.def['Commentary']) }
 
       get bandcampId() { return musicker.archive_music.tracks[this.directory]?.bandcampId }
-
-      // get artists() {
-      //   return this.artist_names?.map(name => thingByName(musicker.all_artists, name)) || []
-      // }
-
     }
 
     class RichAlbum extends Album {
@@ -279,15 +297,12 @@ class Musicker {
 
       get commentary() { return musicker.processText(this.def['Commentary']) }
 
-      get tracks() { return this.trackdefs.map(trackdef => new RichTrack(trackdef, this)) }
-
-      // get artists() {
-      //   // if (this.artist_names?.length > 0) {
-      //     return this.artist_names?.map(name => thingByName(musicker.all_artists, name))
-      //   // } else {
-      //   //   return [...new Set(this.tracks.map(track => track.artists).flat())]
-      //   // }
-      // }
+      // get tracks() { return this.trackdefs.map(trackdef => new RichTrack(trackdef, this)) }
+      get tracks() {
+        // TODO: Pull existing objects from track_sections
+        return Object.values(this.track_sections).flat()
+        // throw Error("Not implemented")
+      }
 
       get artpath() {
         // Broken for albums like mobius trip with old jpg art
@@ -299,77 +314,84 @@ class Musicker {
         }
       }
 
-      get track_sections() {
-        return Object.fromEntries(
-          Object.entries(this.sections)
-          .filter(([section_name, trackdef_list]) => (
-            !(section_name == "Unsorted" && trackdef_list.length == 0))
-          )
-          .map(([section_name, trackdef_list]) => [
-            section_name,
-            trackdef_list.map(trackdef => new RichTrack(trackdef, this))
-          ])
-        )
-      }
+      // get track_sections() {
+      //   return Object.fromEntries(
+      //     Object.entries(this.sections)
+      //     .filter(([section_name, trackdef_list]) => (
+      //       !(section_name == "Unsorted" && trackdef_list.length == 0))
+      //     )
+      //     .map(([section_name, trackdef_list]) => [
+      //       section_name,
+      //       trackdef_list.map(trackdef => new RichTrack(trackdef, this))
+      //     ])
+      //   )
+      // }
     }
+    defineLazyPrototypeProperty(RichAlbum, 'track_sections', function() {
+      return Object.fromEntries(
+        Object.entries(this.sections)
+        .filter(([section_name, trackdef_list]) => (
+          !(section_name == "Unsorted" && trackdef_list.length == 0))
+        )
+        .map(([section_name, trackdef_list]) => [
+          section_name,
+          trackdef_list.map(trackdef => new RichTrack(trackdef, this))
+        ])
+      )
+    })
 
-    this.all_albums = Object.fromEntries(
+    // Construct objects
+
+    this.reg_artists = Object.fromEntries(
+      this.hsmusic.artists
+      .map(artistdef => new Artist(artistdef))
+      .map(thing => [thing.directory, thing])
+    )
+
+    this.reg_albums = Object.fromEntries(
       this.hsmusic.albums
       .map(albumdef => new RichAlbum(albumdef))
       .map(thing => [thing.directory, thing])
     )
 
-    this.all_tracks = Object.fromEntries(
-      Object.values(this.all_albums)
-      .map(album => album.trackdefs
-        .map(trackdef => new RichTrack(trackdef, album))
-      )
+    this.reg_tracks = Object.fromEntries(
+      Object.values(this.reg_albums)
+      .map(album => album.tracks)
+      // .map(album => album.trackdefs
+      //   .map(trackdef => new RichTrack(trackdef, album))
+      // )
       .flat()
       .map(thing => [thing.directory, thing])
     )
 
+    // Postprocessing
+
+    this.referenced_by = this.buildReferenceTable()
+
+    this.all_albums_sorted = Object.values(this.reg_albums)
+    this.all_albums_sorted.sort((a, b) => a.date - b.date)
+
+    this.all_flashdefs = this.hsmusic.flashes
+
     this.test()
   }
 
-  getArtistByName(name) {
-    const result = thingByName(this.all_artists, name)
-    if (result == undefined) {
-      logger.error("Failed to lookup artist by name", name)
-    }
-    return result
-  }
+  buildReferenceTable() {
+    const referenced_by = {}
 
-  thingFromReference(reference) {
-    // FIXME: Implement properly
-    // [
-    //   'artist', 'flash-act',
-    //   'album',  'flash',
-    //   'track',  null,
-    //   'media',  'group',
-    //   'static'
-    // ]
-
-    const matchers = {
-      'artist': (ref => this.all_artists[ref]),
-      'track': (ref => this.all_tracks[ref]),
-      'album': (ref => this.all_albums[ref])
-    }
-
-    const match_kind = /(?<kind>.+):(?<ref_name>.+)/.exec(reference)
-    if (match_kind != undefined) {
-      const {kind, ref_name} = match_kind.groups
-      const matcher = matchers[kind]
-      if (matcher == undefined) {
-        logger.error("No matcher defined for kind:", kind)
+    for (const [directory, track] of Object.entries(this.reg_tracks)) {
+      if (!track.referenced_track_names) continue
+      for (const r_track_name of track.referenced_track_names) {
+        if (!referenced_by[r_track_name]) referenced_by[r_track_name] = []
+        referenced_by[r_track_name].push(track.reference)
       }
-      const result = matcher(ref_name)
-      if (result != undefined) { return result }
-    } else {
-      return thingByName(this.all_tracks, reference)
     }
 
-    throw Error(`Could not resolve reference ${reference}`)
+    return referenced_by
   }
+
+  // Contextful processing
+
 
   processText(raw_text) {
     if (raw_text == undefined) return undefined
@@ -428,17 +450,7 @@ class Musicker {
     return raw_text
   }
 
-  getAlbumBySlug(album_slug) {
-    return this.all_albums[album_slug]
-  }
-
-  getTrackBySlug(track_slug) {
-    return this.all_tracks[track_slug]
-  }
-
-  getArtistBySlug(artist_slug) {
-    return this.all_artists[artist_slug]
-  }
+  // Complex lookup
 
   tracksInPage(viz_page) {
     // FIXME: Optimize
@@ -451,11 +463,90 @@ class Musicker {
       .map(flashdef => flashdef['Featured Tracks'])
       .flat()
 
-    const track_list = Object.values(this.all_tracks)
+    const track_list = Object.values(this.reg_tracks)
       .filter(track => featured_track_names.includes(track.name))
 
     return track_list
   }
+
+  creditGroupsForArtistInAlbums(albumlist, artist) {
+    // Return a list of credit groups, grouped by album
+    // [{album: album, credits: [{what, track}...], }...]
+    var creditGroups = []
+
+    for (const album of albumlist) {
+      const credits = []
+      for (const track of album.tracks) {
+        // Main artist contributions
+        for (const {who, what} of track.all_contributors) {
+          if (artist.name == who) {
+            credits.push({
+              what: what, // (what ? `${track.name} (${what})` : track.name),
+              track: track
+            })
+          }
+        }
+      }
+      if (credits.length > 0) {
+        creditGroups.push({
+          credits,
+          album
+        })
+      }
+    }
+
+    return creditGroups
+  }
+
+  thingFromReference(reference) {
+    // FIXME: Implement properly
+    // [
+    //   'artist', 'flash-act',
+    //   'album',  'flash',
+    //   'track',  null,
+    //   'media',  'group',
+    //   'static'
+    // ]
+
+    const matchers = {
+      'artist': (ref => this.reg_artists[ref]),
+      'track': (ref => this.reg_tracks[ref]),
+      'album': (ref => this.reg_albums[ref])
+    }
+
+    const match_kind = /(?<kind>.+):(?<ref_name>.+)/.exec(reference)
+    if (match_kind != undefined) {
+      const {kind, ref_name} = match_kind.groups
+      const matcher = matchers[kind]
+      if (matcher == undefined) {
+        logger.error("No matcher defined for kind:", kind)
+      }
+      const result = matcher(ref_name)
+      if (result != undefined) { return result }
+    } else {
+      return thingByName(this.reg_tracks, reference)
+    }
+
+    throw Error(`Could not resolve reference ${reference}`)
+  }
+
+  getArtistByName(name) {
+    const result = thingByName(this.reg_artists, name)
+    if (result == undefined) {
+      logger.error("Failed to lookup artist by name", name)
+    }
+    return result
+  }
+
+  // Simple Lookup
+
+  getArtistBySlug(artist_slug) { return this.reg_artists[artist_slug] }
+
+  getAlbumBySlug(album_slug) { return this.reg_albums[album_slug] }
+
+  getTrackBySlug(track_slug) { return this.reg_tracks[track_slug] }
+
+  // Tests
 
   async test() {
     logger.info("Running tests")
@@ -505,8 +596,8 @@ class Musicker {
 
     // Check text processing
     // TODO: run later
-    // Object.values(this.all_albums).map(album => album.commentary)
-    // Object.values(this.all_tracks).map(track => track.commentary)
+    // Object.values(this.reg_albums).map(album => album.commentary)
+    // Object.values(this.reg_tracks).map(track => track.commentary)
 
     // Music-in-flash count
     await expectMap({

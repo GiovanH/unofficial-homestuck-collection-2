@@ -19,7 +19,8 @@
         <ol class="nameList">
           <li v-for="c, i in track.artist_contribs" :key="i"
             :set="artist = $musicker.getArtistByName(c.who)">
-            <a :href="artist.uhcLink" v-text="artist.name"/>
+            <a v-if="artist" :href="artist.uhcLink" v-text="artist.name"/>
+            <span v-else v-text="c.who" />
           </li>
         </ol>
       </h3>
@@ -77,24 +78,15 @@
 
       <div class="references" v-if="track.referenced_track_names">
         Tracks that <i>{{track.name}}</i> references:
-        <ul>
-          <li v-for="name, i in track.referenced_track_names" :key="i">
-            <a
-              v-if="$musicker.thingFromReference(name)"
-              :href="$musicker.thingFromReference(name).uhcLink"
-              v-text="name"/>
-            <span v-else v-text="name" />
-          </li>
-        </ul>
+        <TrackList :reflist="track.referenced_track_names" />
       </div>
 
-      <!--
-        TODO referencedBy
-      <div class="referencedBy" v-if="track.referencedBy && track.referencedBy.length > 0">Tracks that reference <i>{{track.name}}</i>:
-        <ul>
-          <li v-for="reference in track.referencedBy" v-html="linkReference(reference)"/>
-        </ul>
-      </div> -->
+      <div class="referencedBy"
+        v-if="$musicker.referenced_by[track.name]">
+        Tracks that reference <i>{{track.name}}</i>:
+        <TrackList :reflist="$musicker.referenced_by[track.name]" />
+      </div>
+
     </div>
 
     <!-- TODO features -->
@@ -107,12 +99,13 @@
       </p>
     </div>
 
-    <pre v-html="track" />
+    <pre v-html="{...track, album: '...'}" />
   </div>
 </template>
 
 <script>
 import Media from '@/components/UIElements/MediaEmbed.vue'
+import TrackList from '@/components/Music/TrackList.vue'
 import Resources from '@/resources.js'
 
 export default {
@@ -122,7 +115,7 @@ export default {
     'track'
   ],
   components: {
-    Media
+    Media, TrackList
   },
   data: function() {
     return {

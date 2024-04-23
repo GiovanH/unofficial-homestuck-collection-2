@@ -16,17 +16,7 @@
           <a :href="album.uhcLink" v-else>
             <h2 class="trackTitle">{{album.name}}</h2>
           </a>
-          <ol v-if="album.directory != 'TEASER'">
-            <li v-for="track in album.tracks" :key="track.directory">
-              <a :href="track.uhcLink" v-text="track.name" />
-              <span v-if="track.artist_contribs && track.artist_contribs.length == 1"> - <a
-                  class="compilationArtist"
-                  :set="artist = $musicker.getArtistByName(track.artist_contribs[0].who) || {}"
-                  :href="artist.uhcLink"
-                  v-text="artist.name" />
-                </span>
-            </li>
-          </ol>
+          <TrackList v-if="album.directory != 'TEASER'" :thinglist="album.tracks" :iscompilation="!album.artist_contribs" />
           <span v-else>Keep reading to unlock!</span>
         </div>
       </div>
@@ -34,10 +24,11 @@
     <div class="artistography" v-else-if="mode == 'artists'">
       <h2 class="trackTitle">Artists:</h2>
       <ul class="artists">
-        <li v-for="artist in artistographySorted" :key="artist.directory">
+        <li v-for="artist in artistographyFilteredSorted" :key="artist.directory">
           <a :href="artist.uhcLink" v-text="artist.name" />
         </li>
       </ul>
+      <span v-if="$isNewReader"><br />Continue reading to unlock more info!</span>
     </div>
     <div class="flashography" v-else-if="mode == 'features'">
       <div class="album" v-for="flash in flashographySorted" :key="flash.url">
@@ -78,6 +69,7 @@
 
 <script>
 import Media from '@/components/UIElements/MediaEmbed.vue'
+import TrackList from '@/components/Music/TrackList.vue'
 
 export default {
   name: 'MusicDiscography',
@@ -85,7 +77,7 @@ export default {
     'mode'
   ],
   components: {
-    Media
+    Media, TrackList
   },
   data: function() {
     return {
@@ -93,9 +85,42 @@ export default {
     }
   },
   computed: {
-    artistographySorted() {
-      let artist_list = [...Object.values(this.$musicker.all_artists)]
-      // TODO: Filter artists who are only in external references
+    nonSpoilerArtistAlbums() {
+      return this.$musicker.all_albums_sorted
+        .filter(a => !this.$albumIsSpoiler(a))
+        .filter(a => a.directory != 'references-beyond-homestuck')
+    },
+    artistographyFiltered() {
+      const artist_list = Object.values(this.$musicker.reg_artists)
+        .filter(artist => artist.directory != 'homestuck')
+        .filter(artist => {
+          if (!this.$isNewReader) return true
+
+          const all_credits = this.$musicker.creditGroupsForArtistInAlbums(
+              this.nonSpoilerArtistAlbums,
+              artist
+            )
+            .map(albumcredit => albumcredit.credits)
+            .flat()
+
+          // If any track isn't a spoiler, artist isn't a spoiler
+          // if (all_credits.length > 0) {
+          //   return true
+          // }
+          for (const {track} of all_credits) {
+            if (!this.$trackIsSpoiler(track)) {
+              return true
+            }
+          }
+
+          return false
+        })
+
+        return artist_list
+    },
+    artistographyFilteredSorted() {
+      const artist_list = this.artistographyFiltered
+      artist_list.sort((a, b) => a.name - b.name)
       return artist_list
     },
     flashographySorted() {
@@ -136,13 +161,11 @@ export default {
       return result
     },
     filteredAlbums() {
-      const all_albums = Object.values(this.$musicker.all_albums)
-      const filtered_albums = all_albums
+      const filtered_albums = this.$musicker.all_albums_sorted
         .filter(a => !this.$albumIsSpoiler(a))
         .filter(a => a.directory != 'references-beyond-homestuck')
 
-      filtered_albums.sort((a, b) => a.date - b.date)
-      if (filtered_albums.length < all_albums.length) {
+      if (filtered_albums.length < this.$musicker.all_albums_sorted.length) {
         filtered_albums.push({directory: 'TEASER'})
       }
 
@@ -327,9 +350,9 @@ export default {
             .spoiler {
               color: var(--font-default);
             }
-            a {
-              padding-right: 6px;
-            }
+            // a {
+            //   padding-right: 6px;
+            // }
           }
         }
       }
