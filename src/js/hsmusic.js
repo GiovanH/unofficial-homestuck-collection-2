@@ -2,6 +2,8 @@ var logger
 if (!window.isWebApp) {
   const log = require('electron-log')
   logger = log.scope('hsmusic')
+} else {
+  logger = console
 }
 
 import {marked} from 'marked';
@@ -150,6 +152,11 @@ class Album extends Thing {
     this.name = def.header['Album']
     this.external_links = def.header['URLs']
     this.bonus = def.header['Additional Files']
+
+    this.use_numbers = true
+    if (def.header['Has Track Numbers'] === false) {
+      this.use_numbers = false
+    }
   }
 
   // get artist_contribs() { return mapContribString(this.def['Artists']) }
@@ -253,7 +260,7 @@ defineLazyPrototypeProperty(Track, 'artist_contribs', function() {
     this.album.artist_contribs
 })
 defineLazyPrototypeProperty(Track, 'cover_artist_contribs', function() {
-  return mapContribString(this.def['Cover Artists'], 'cover art') ||
+  return mapContribString(this.def['Cover Artists'], 'track art') ||
     this.album.cover_artist_contribs
 })
 defineLazyPrototypeProperty(Track, 'contributor_contribs', function() {
@@ -262,17 +269,29 @@ defineLazyPrototypeProperty(Track, 'contributor_contribs', function() {
 })
 
 class Flash extends Thing {
-  constructor(def) {
+  constructor(def, section) {
     super(def)
+
+    this.section = section
 
     this.name = def['Flash']
     this.viz_page = def['Page']
     this.track_names = def['Featured Tracks']
   }
 
+  get uhcLink() {
+    if (this.viz_page) {
+      return `/homestuck/${this.viz_page}`
+    } else if (this.section.includes('Hiveswap') || this.section.includes('Pesterquest')) {
+      return '/skaianet'
+    }
+  }
+
   get artpath() {
     if (this.viz_page) {
       return `assets://archive/music/flash/${this.viz_page}.png`
+    } else if (this.ref_track) {
+      return this.ref_track.artpath
     } else {
       return undefined
     }
@@ -297,9 +316,49 @@ class Musicker {
       //   super(def, album)
       // }
       //
-      get referenced_by() { return musicker.referenced_by[this.name] }
+      get referenced_by() { return musicker.referenced_by[this.reference] }
 
       get commentary() { return musicker.parseCommentary(this.def['Commentary']) }
+
+      get lyrics() {
+        if (this.def['Lyrics']) {
+          if (this.def['Lyrics'].includes('<br')) {
+            return musicker.processText(
+              this.def['Lyrics'],
+              {multiline: true}
+            )
+          } else {
+          return musicker.processText(
+            this.def['Lyrics']
+              .replace(/(?!^)\n/gm, '<br>\n')
+              .replace(/<br>$(?=\n\n)/gm, ''),
+            {multiline: false}
+          )
+
+          }
+        }
+      }
+
+      get artist_contribs() {
+        const oname = this.def['Originally Released As']
+        return oname
+          ? musicker.thingFromReference(oname).artist_contribs
+          : super.artist_contribs
+      }
+
+      get cover_artist_contribs() {
+        const oname = this.def['Originally Released As']
+        return oname
+          ? musicker.thingFromReference(oname).cover_artist_contribs
+          : super.cover_artist_contribs
+      }
+
+      get contributor_contribs() {
+        const oname = this.def['Originally Released As']
+        return oname
+          ? musicker.thingFromReference(oname).contributor_contribs
+          : super.contributor_contribs
+      }
 
       get bandcamp_id() { return musicker.archive_music.tracks[this.directory]?.bandcampId }
     }
@@ -344,6 +403,8 @@ class Musicker {
       // }
     }
     defineLazyPrototypeProperty(RichAlbum, 'track_sections', function() {
+      // TODO: tracks should be numbered continuously
+      //
       return Object.fromEntries(
         Object.entries(this.sections)
         // Filter out empty sections
@@ -357,6 +418,14 @@ class Musicker {
       )
     })
 
+    class RichFlash extends Flash {
+      get ref_track() {
+        return this.track_names
+          .map(name => musicker.thingFromReference(name))
+          .filter(thing => thing?.artpath)
+          [0]
+      }
+    }
     // Construct objects
 
     this.reg_artists = Object.fromEntries(
@@ -381,10 +450,14 @@ class Musicker {
       .map(thing => [thing.directory, thing])
     )
 
-    this.reg_flashes = Object.fromEntries(
-      Object.values(this.hsmusic.flashes).flat()
-      .map(flashdef => new Flash(flashdef))
-      .map(thing => [thing.directory, thing])
+    this.reg_flashes_grouped = Object.fromEntries(
+      Object.entries(this.hsmusic.flashes)
+        .map(([section_name, flashlist]) => ([
+          section_name,
+          flashlist
+            .map(flashdef => new RichFlash(flashdef, section_name))
+            // .map(thing => [thing.directory, thing])
+        ]))
     )
 
     // Postprocessing
@@ -392,7 +465,21 @@ class Musicker {
     this.referenced_by = this.buildReferenceTable()
 
     this.all_albums_sorted = Object.values(this.reg_albums)
+      .filter(album => album.def['Groups'].includes('group:official'))
     this.all_albums_sorted.sort((a, b) => a.date - b.date)
+
+    this.flash_groups_sorted =
+      Object.entries(this.reg_flashes_grouped)
+        .map(([section_name, flashlist]) => {
+          const flash_list = [...flashlist]
+          flash_list.sort((a, b) => a.date - b.date)
+          return {
+            name: section_name,
+            flash_list: flash_list
+          }
+        })
+
+    this.reg_flashes = Object.values(this.reg_flashes_grouped).flat()
 
     this.all_flashes_sorted = Object.values(this.reg_flashes)
     this.all_flashes_sorted.sort((a, b) => a.date - b.date)
@@ -408,8 +495,17 @@ class Musicker {
     for (const [directory, track] of Object.entries(this.reg_tracks)) {
       if (!track.referenced_track_names) continue
       for (const r_track_name of track.referenced_track_names) {
-        if (!referenced_by[r_track_name]) referenced_by[r_track_name] = []
-        referenced_by[r_track_name].push(track.reference)
+        let thing;
+
+        thing = this.thingFromReference(r_track_name)
+        if (!thing) {
+          logger.warn(`Couldn't look up referenced_by thing ${r_track_name}`)
+          continue
+        }
+        const r_track_ref = thing.reference
+
+        if (!referenced_by[r_track_ref]) referenced_by[r_track_ref] = []
+        referenced_by[r_track_ref].push(track.reference)
       }
     }
 
@@ -417,7 +513,8 @@ class Musicker {
   }
 
   // Contextful processing
-  processText(raw_text) {
+  processText(raw_text, options) {
+    options = options || {}
     if (raw_text == undefined) return undefined
 
     // Process links
@@ -467,14 +564,16 @@ class Musicker {
         'src="assets://archive/social/news/thanksforplaying.jpg"'
       )
 
-    // nebula really does this
-    const markedInput = raw_text
-      .replace(/(?<!  .*)\n{2,}(?!^  )/gm, '\n') /* eslint-disable-line no-regex-spaces */
-      .replace(/(?<!^ *-.*|^>.*|^  .*\n*|  $|<br>$)\n+(?!  |\n)/gm, '\n\n') /* eslint-disable-line no-regex-spaces */
-      .replace(/(?<=^ *-.*)\n+(?!^ *-)/gm, '\n\n')
-      .replace(/(?<=^>.*)\n+(?!^>)/gm, '\n\n')
+    if (options.multiline) {
+      // nebula really does this
+      raw_text = raw_text
+        .replace(/(?<!  .*)\n{2,}(?!^  )/gm, '\n') /* eslint-disable-line no-regex-spaces */
+        .replace(/(?<!^ *-.*|^>.*|^  .*\n*|  $|<br>$)\n+(?!  |\n)/gm, '\n\n') /* eslint-disable-line no-regex-spaces */
+        .replace(/(?<=^ *-.*)\n+(?!^ *-)/gm, '\n\n')
+        .replace(/(?<=^>.*)\n+(?!^>)/gm, '\n\n')
+    }
 
-    return marked.parse(markedInput)
+    return marked.parse(raw_text)
   }
 
   parseCommentary(raw_text) {
@@ -494,7 +593,7 @@ class Musicker {
 
     return {
       sections: raw_section_matches.map((match, i) => {
-        const next_match_index = raw_section_matches[i + 1]?.index || -1
+        const next_match_index = raw_section_matches[i + 1]?.index || raw_text.length
         const artistReferences = match.groups.artistReferences
           .split(',')
           .map(ref => ref.trim())
@@ -507,7 +606,8 @@ class Musicker {
             raw_text.slice(
               match.index + match[0].length,
               next_match_index
-            ).trim()
+            ).trim(),
+            {multiline: true}
           )
         }
       })
@@ -579,6 +679,7 @@ class Musicker {
       'album': (ref => this.reg_albums[ref]),
       'group': (ref => this.reg_artists[ref]), // HACK: Try to find solo artist
       'flash': (ref => ({uhcLink: `/homestuck/${ref}`})), // HACK: link to flash
+      'flash-act': (ref => ({uhcLink: `/music/features`})), // HACK: link to flash index
     }
 
     const match_kind = /(?<kind>.+):(?<ref_name>.+)(?<label>\|.+)?/.exec(reference)
@@ -593,7 +694,8 @@ class Musicker {
       if (result != undefined) {
         return result
       } else {
-        throw Error(`Could not resolve reference ${reference}`)
+        logger.error(`Could not resolve reference ${reference}`)
+        return undefined
       }
     } else {
       // logger.debug(`Couldn't lookup ${reference} from registry, trying tracks...`)
@@ -602,7 +704,12 @@ class Musicker {
   }
 
   getArtistByName(name) {
-    const result = thingByName(this.reg_artists, name)
+    var result = thingByName(this.reg_artists, name)
+    if (result == undefined) {
+      result = this.thingFromReference(name)
+
+      if (result) logger.warn("Artist name lookup passed non-name reference", name)
+    }
     if (result == undefined) {
       logger.error("Failed to lookup artist by name", name)
     }
@@ -769,6 +876,8 @@ class Musicker {
     await expectMap({
       // Explicit
       "arisen-anew": [{"who": "Tensei", "what": null}],
+      // Rerelease:
+      "showtime-piano-refrain-vol-1-4": [{"who": "Kevin Regamey", "what": null}],
       // Fallthrough
       "overture-canon-edit": [{"who": "Clark Powell", "what": null}, {"who": "Toby Fox", "what": null}]
     }, (ref) => this.reg_tracks[ref].artist_contribs)
@@ -776,7 +885,7 @@ class Musicker {
     // Track cover_artist_contribs
     await expectMap({
       // Explicit
-      "crustacean": [{"who": "Kirvia", "what": "cover art"}],
+      "crustacean": [{"who": "Kirvia", "what": "track art"}],
       // Fallthrough
       "overture-canon-edit": [{"who": "Homestuck", "what": "cover art"}]
     }, (ref) => this.reg_tracks[ref].cover_artist_contribs)
@@ -787,7 +896,7 @@ class Musicker {
       "fiduspawn-go": [
         {"who": "David Ko", "what": null},
         {"who": "Toby Fox", "what": "arrangement"},
-        {"who": "Phil Gibson", "what": "cover art"},
+        {"who": "Phil Gibson", "what": "track art"},
         {"who": "The_Eighth_Bit", "what": "soundfont"}
       ],
       // Fallthrough
@@ -826,7 +935,13 @@ class Musicker {
     // RichTrack referenced_by
     await expectMap({
       "crustacean": ["track:death-of-the-lusii","track:karkats-theme","track:shes-a-sp8der","track:rex-duodecim-angelus","track:some-kind-of-alien","track:ascend","track:frustracean","track:a-knights-reflection","track:youre-so-rad","track:crustacean-pesterquest","track:oppa-toby-style","track:crab-waltz"],
-      "overture-canon-edit": undefined
+      "overture-canon-edit": undefined,
+      "nuclear-james-roach": [
+        "track:filthy-nuclear-bunker",
+        "track:fortnite-funny-moments-epic-fails-episode-413",
+        "track:yeah-it-is"
+      ],
+      "song-of-skaia": ["track:creata"]
     }, (ref) => this.reg_tracks[ref].referenced_by)
 
     // RichTrack bandcamp_id
@@ -847,16 +962,21 @@ class Musicker {
     //
     // Check text processing
     // TODO: run later
-    //
+
+    // Casing
+    await expectMap({
+      "Horschestra STRONG Version": '/music/track/horschestra-STRONG-version',
+    }, (name) => thingByName(this.reg_tracks, name)?.uhcLink)
 
     await expectMap({
-      "alternia": 2,
-      "coloUrs-and-mayhem-universe-a": 2,
-      "coloUrs-and-mayhem-universe-b": 2,
-    }, (ref) => this.reg_albums[ref].commentary.sections.length)
+      "coloUrs and mayhem: Universe B": '/music/album/coloUrs-and-mayhem-universe-b',
+    }, (name) => thingByName(this.reg_albums, name)?.uhcLink)
 
-    Object.values(this.reg_albums).map(album => album.commentary)
-    Object.values(this.reg_tracks).map(track => track.commentary)
+    await expectMap({
+      "alternia": 7,
+      "coloUrs-and-mayhem-universe-a": 4,
+      "coloUrs-and-mayhem-universe-b": 3,
+    }, (ref) => this.reg_albums[ref].commentary.sections.length)
 
     // Music-in-flash count
     await expectMap({
@@ -866,6 +986,13 @@ class Musicker {
     }, (viz_num) => this.tracksInPage.bind(this)(viz_num).length)
 
     logger.info(`${tests_failed} failed, ${tests_passed} passed`)
+
+    Object.values(this.reg_albums).map(album => album.commentary)
+    Object.values(this.reg_tracks).map(track => track.commentary)
+    Object.values(this.reg_tracks).map(track => track.lyrics)
+    Object.values(this.reg_tracks).map(track => track.all_contributors)
+
+    logger.info('Tested text generation (see console for errors)')
   }
 }
 

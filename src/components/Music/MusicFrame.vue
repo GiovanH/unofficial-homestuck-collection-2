@@ -250,7 +250,7 @@ export default {
     }
     li:first-of-type + li {
       // Odd spacing here with the external link icon
-      &:last-of-type:before { content: "or "; }
+      &:last-of-type:before { content: " or "; }
     }
   }
 

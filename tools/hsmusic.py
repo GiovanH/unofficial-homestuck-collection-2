@@ -7,6 +7,8 @@ import shlex
 import typing
 import itertools
 
+import markdown
+
 from pathlib import Path, PurePosixPath
 
 GROUP_WHITELIST: list[str] = ['group:official', 'Additional Tracks']
@@ -64,6 +66,8 @@ def getFilteredAlbums(group_whitelist: list[str] = ['group:official']) -> typing
             album_header = next(yaml.safe_load_all(fp))  # Only read header
 
         if shareAnyCommonItems(album_header.get('Groups'), group_whitelist):
+            yield Album.fromYamlPath(album_yaml_path)
+        elif album_header['Album'] in ['Songs Unsung', "Labyrinth's Heart"]:
             yield Album.fromYamlPath(album_yaml_path)
             # with open(album_yaml_path, 'r', encoding='utf-8') as fp:
             #     yield Album([*yaml.safe_load_all(fp)], yaml_path=album_yaml_path)
@@ -139,6 +143,8 @@ def main() -> None:
 
     print("Filtering artists by album")
     filtered_artist_names: set[str] = set(getArtistsInAlbums(filtered_albums))
+    filtered_artist_names.add('Ian Taylor')
+    filtered_artist_names.add('Paul Henderson')
 
     filtered_artists: list[dict] = []
     with open((DATA_ROOT_PATH / 'artists.yaml'), 'r', encoding='utf-8') as fp:

@@ -41,21 +41,35 @@
       <span v-if="$isNewReader"><br />Continue reading to unlock more info!</span>
     </div>
     <div class="flashography" v-else-if="mode == 'features'">
-      <div class="album" v-for="flash in flashographySorted" :key="flash.url">
-        <div class="thumbnail">
-          <a :href="flash.url"  target="_blank" class="coverArt">
-            <Media :url="`/archive/music/flash/${flash.thumbnail}.png`" v-if="flash.thumbnail"/>
-            <Media url="/archive/music/spoiler.png" v-else/>
-          </a>
-          <p v-if="flash.pageNum" class="date" v-text="flash.pageNum" />
-        </div>
-        <div>
-          <a :href="flash.url" v-if="flash.url" target="_blank"><h2 class="trackTitle flashTitle" v-text="flash.title"/></a>
-          <h2 class="trackTitle flashTitle" v-text="flash.title" v-else />
-          <ul>
-            <li v-for="track in flash.tracks" v-html="track"/>
-          </ul>
-        </div>
+      <div v-for="section in flashGroupsFiltered" class="flashGroup">
+        <h1 v-html="section.name" />
+        <template v-for="flash in section.flash_list">
+          <!-- <div class="album teaser" v-if="($isNewReader && !flash.viz_page) || $pageIsSpoiler($vizToMspa('homestuck', flash.viz_page))">
+            <div class="thumbnail">
+              <a class="coverArt">
+                <Media url="/archive/music/spoiler.png" />
+              </a>
+            </div>
+            <div >
+              <h2 class="trackTitle flashTitle">Continue reading to unlock</h2>
+            </div>
+          </div> -->
+          <div class="album" >
+            <div class="thumbnail">
+              <a :href="flash.uhcLink"  target="_blank" class="coverArt">
+                <Media :url="flash.artpath || 'assets://archive/music/spoiler.png'" />
+              </a>
+              <p v-if="flash.date" class="date" v-text="flash.date.toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'})" />
+            </div>
+            <div>
+              <StoryPageLink v-if="flash.viz_page" :mspaId="$vizToMspa('homestuck', flash.viz_page).p" long titleOnly class="trackTitle flashTitle" />
+              <a :href="flash.uhcLink" v-else-if="flash.uhcLink" target="_blank"><h2 class="trackTitle flashTitle" v-text="flash.name"/></a>
+              <h2 class="trackTitle flashTitle" v-text="flash.name" v-else />
+              <TrackList :reflist="flash.track_names" :iscompilation="true" />
+            </div>
+          </div>
+        </template>
+
       </div>
     </div>
     <div class="discography" v-else>
@@ -67,7 +81,7 @@
             <p class="title">Keep reading to unlock!</p>
           </div>
           <a v-else :href="album.uhcLink">
-            <img class="art" :src="album.artpath || 'assets://archive/music/spoiler.png'" width="350" />
+            <Media class="art" :url="album.artpath || 'assets://archive/music/spoiler.png'" width="350" />
             <p class="title" v-text="album.name" />
             <p class="date" v-if="album.date" v-text="album.date.toLocaleDateString([], {month: 'long', day: 'numeric', year: 'numeric'})" />
           </a>
@@ -105,14 +119,14 @@ export default {
       const artist_list = Object.values(this.$musicker.reg_artists)
         .filter(artist => artist.directory != 'homestuck')
         .filter(artist => {
-          if (!this.$isNewReader) return true
-
           const all_credits = this.$musicker.creditGroupsForArtistInAlbums(
               this.nonSpoilerArtistAlbums,
               artist
             )
             .map(albumcredit => albumcredit.credits)
             .flat()
+
+          if (all_credits.length > 0 && !this.$isNewReader) return true
 
           // If any track isn't a spoiler, artist isn't a spoiler
           // if (all_credits.length > 0) {
@@ -134,51 +148,100 @@ export default {
       artist_list.sort((a, b) => a.name - b.name)
       return artist_list
     },
-    flashographySorted() {
-      // Sort in chronological order of release
-      let keys = Object.keys(this.$archive.music.flashes).sort((key1, key2) => {
-        let timestamp1 = key1 in this.$archive.mspa.story && this.$archive.mspa.story[key1].timestamp ? this.$archive.mspa.story[key1].timestamp : new Date(this.$archive.music.flashes[key1].date).getTime()/1000
-        let timestamp2 = key2 in this.$archive.mspa.story && this.$archive.mspa.story[key2].timestamp ? this.$archive.mspa.story[key2].timestamp : new Date(this.$archive.music.flashes[key2].date).getTime()/1000
-        
-        return timestamp1 - timestamp2
-      })
-      let result =  keys.filter(page => !this.$pageIsSpoiler(page) && page != '007326').map(page => {
-        let flash = this.$archive.music.flashes[page]
-        let tracks = []
+    flashGroupsFiltered() {
+      const flashIsNotSpoiler = (flash) => {
+        if (!this.$isNewReader) return true
+        // Flashes without page info are spoilers
+        if (!flash.viz_page) return false
 
-        flash.tracks.forEach(track => tracks.push(this.linkReference(track)))
-        
-        if ('bolin' in flash) {
-          flash.bolin.forEach(track => {
-            if (!flash.tracks.includes(track)) tracks.push(this.linkReference(track) + ' (Removed 11/Jun/2010)')
-          })
-        }
-
-        let pageData = this.getPage(page)
-        return {
-          title: pageData.title, 
-          pageNum: pageData.pageNum,
-          thumbnail: pageData.thumbnail,
-          url: pageData.url,
-          tracks
-        }
-      })
-      if (this.$isNewReader) {
-        result.push({
-          title: '??????',
-          tracks: ['Keep reading to unlock!']
-        })
+        return (!this.$pageIsSpoiler(
+          this.$vizToMspa('homestuck', flash.viz_page).p
+        ))
       }
-      return result
+      return this.$musicker.flash_groups_sorted
+        .map(({name, flash_list}) => {
+          return {
+            name,
+            flash_list: flash_list
+              .filter(flashIsNotSpoiler)
+
+          }
+        })
+        .filter(({name, flash_list}) => flash_list.length > 0)
     },
+    // flashographySorted() {
+    //   return this.$musicker.all_flashes_sorted.map(flash => {
+    //     if (flash.viz_page) {
+    //       const pageNum = this.$vizToMspa('homestuck', flash.viz_page)
+    //       let pageData = this.getPage(pageNum.p)
+
+    //       return {
+    //         title: flash.name,
+    //         pageNum: pageNum.p,
+    //         thumbnail: `/archive/music/flash/${pageData.thumbnail}.png`,
+    //         url: pageData.url,
+    //         track_names: flash.track_names,
+    //         date: flash.date
+    //       }
+    //     } else {
+    //       const ref_track = this.$musicker.thingFromReference(flash.track_names[0])
+    //       return {
+    //         title: flash.name,
+    //         pageNum: undefined,
+    //         thumbnail: (ref_track || {}).artpath,
+    //         url: '/skaianet',
+    //         track_names: flash.track_names,
+    //         date: flash.date
+    //       }
+    //     }
+    //   })
+
+    //   // Sort in chronological order of release
+    //   // let keys = Object.keys(this.$archive.music.flashes).sort((key1, key2) => {
+    //   //   let timestamp1 = key1 in this.$archive.mspa.story && this.$archive.mspa.story[key1].timestamp ? this.$archive.mspa.story[key1].timestamp : new Date(this.$archive.music.flashes[key1].date).getTime()/1000
+    //   //   let timestamp2 = key2 in this.$archive.mspa.story && this.$archive.mspa.story[key2].timestamp ? this.$archive.mspa.story[key2].timestamp : new Date(this.$archive.music.flashes[key2].date).getTime()/1000
+
+    //   //   return timestamp1 - timestamp2
+    //   // })
+    //   // let result =  keys.filter(page => !this.$pageIsSpoiler(page) && page != '007326').map(page => {
+    //   //   let flash = this.$archive.music.flashes[page]
+    //   //   let tracks = []
+
+    //   //   flash.tracks.forEach(track => tracks.push(this.linkReference(track)))
+
+    //   //   if ('bolin' in flash) {
+    //   //     flash.bolin.forEach(track => {
+    //   //       if (!flash.tracks.includes(track)) tracks.push(this.linkReference(track) + ' (Removed 11/Jun/2010)')
+    //   //     })
+    //   //   }
+
+    //   //   let pageData = this.getPage(page)
+    //   //   return {
+    //   //     title: pageData.title,
+    //   //     pageNum: pageData.pageNum,
+    //   //     thumbnail: pageData.thumbnail,
+    //   //     url: pageData.url,
+    //   //     tracks
+    //   //   }
+    //   // })
+    //   // if (this.$isNewReader) {
+    //   //   result.push({
+    //   //     title: '??????',
+    //   //     tracks: ['Keep reading to unlock!']
+    //   //   })
+    //   // }
+    //   // return result
+    // },
     filteredAlbums() {
-      const filtered_albums = this.$musicker.all_albums_sorted
+      let filtered_albums = this.$musicker.all_albums_sorted
         .filter(a => !this.$albumIsSpoiler(a))
-        .filter(a => a.directory != 'references-beyond-homestuck')
 
       if (filtered_albums.length < this.$musicker.all_albums_sorted.length) {
         filtered_albums.push({directory: 'TEASER'})
       }
+
+      filtered_albums = filtered_albums
+        .filter(a => a.directory != 'references-beyond-homestuck')
 
       return filtered_albums
     },
@@ -189,38 +252,6 @@ export default {
     }
   },
   methods: {
-    // Legacy flashography:
-    joinNoOxford(array, plural = 'and') {
-      if (array.length === 0) {
-          return ''
-      }
-
-      if (array.length === 1) {
-          return array[0]
-      }
-
-      if (array.length === 2) {
-          return `${array[0]} ${plural} ${array[1]}`
-      }
-
-      return `${array.slice(0, -1).join(', ')} ${plural} ${array[array.length - 1]}`
-    },
-    linkArtists(array) {
-      return array.map(artist => {
-        if (typeof artist == 'string') return `<a href="/music/artist/${artist}">${this.$archive.music.artists[artist].name}</a>`
-        else return `<a href="/music/artist/${artist.who}">${this.$archive.music.artists[artist.who].name}</a>${!!artist.what ? ` (${artist.what})` : ''}`
-      })
-    },
-    linkReference(reference) {
-      const track = this.$musicker.getTrackBySlug(reference)
-      if (!track || this.$trackIsSpoiler(track)) {
-        return '??????'
-      }
-      else if (reference in this.$archive.music.tracks) {
-        return `<a href="/music/track/${this.$archive.music.tracks[reference].directory}">${this.$archive.music.tracks[reference].name}</a> <i>by ${this.joinNoOxford(this.linkArtists(this.$archive.music.tracks[reference].artists))}</i>`
-      }
-      else return reference
-    },
     getPage(page){
       if (page in this.$archive.mspa.story) {
         let title = this.$archive.mspa.story[page].title
@@ -228,7 +259,7 @@ export default {
         let pageNum = (!/\D/.test(page) ? 'Page ' : '') + (this.$localData.settings.mspaMode ? page : thumbnail)
         let url = `/mspa/${page}`
         return {
-          title, 
+          title,
           pageNum,
           thumbnail,
           url
@@ -252,18 +283,53 @@ export default {
         url: undefined,
         thumbnail: undefined,
       })
-    }
+    },
+    // Legacy flashography:
+    // joinNoOxford(array, plural = 'and') {
+    //   if (array.length === 0) {
+    //       return ''
+    //   }
+
+    //   if (array.length === 1) {
+    //       return array[0]
+    //   }
+
+    //   if (array.length === 2) {
+    //       return `${array[0]} ${plural} ${array[1]}`
+    //   }
+
+    //   return `${array.slice(0, -1).join(', ')} ${plural} ${array[array.length - 1]}`
+    // },
+    // linkArtists(array) {
+    //   return array.map(artist => {
+    //     if (typeof artist == 'string') return `<a href="/music/artist/${artist}">${this.$archive.music.artists[artist].name}</a>`
+    //     else return `<a href="/music/artist/${artist.who}">${this.$archive.music.artists[artist.who].name}</a>${!!artist.what ? ` (${artist.what})` : ''}`
+    //   })
+    // },
+    // linkReference(reference) {
+    //   const track = this.$musicker.getTrackBySlug(reference)
+    //   if (!track || this.$trackIsSpoiler(track)) {
+    //     return '??????'
+    //   }
+    //   else if (reference in this.$archive.music.tracks) {
+    //     return `<a href="/music/track/${this.$archive.music.tracks[reference].directory}">${this.$archive.music.tracks[reference].name}</a> <i>by ${this.joinNoOxford(this.linkArtists(this.$archive.music.tracks[reference].artists))}</i>`
+    //   }
+    //   else return reference
+    // },
   }
 }
 </script>
 
 <style scoped lang="scss">
 .discographyPage {
-  h2.trackTitle {
+  h2.trackTitle, .flashTitle {
     font: normal 28px/1em 'Helvetica Neue', Helvetica, Arial, sans-serif;
     margin: -4px 30px 8px 0; /* right margin equal to space between columns */
     word-wrap: break-word;
     max-width: 726px;
+  }
+  span.flashTitle {
+    font: normal 24px/1em 'Helvetica Neue', Helvetica, Arial, sans-serif;
   }
   .discography {
     .reverseButton {
@@ -371,6 +437,18 @@ export default {
   }
 
   .flashography {
+    div.teaser + div.teaser {
+      display: none;
+    }
+    .flashGroup {
+      padding-bottom: 1em;
+      h1 {
+        font-family: Courier New;
+        font-size: 24px;
+        font-weight: bold;
+        padding-bottom: 1em;
+      }
+    }
     .album {
       margin-bottom: 30px;
       display: flex;
@@ -409,6 +487,7 @@ export default {
         margin-top: 0;
       }
       ul, ol {
+        margin-top: .5em;
         list-style-position: inside;
         ::v-deep {
           li {

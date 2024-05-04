@@ -64,7 +64,7 @@
           <p v-if="section_name != 'Unsorted'">
             <em>{{section_name}}:</em>
           </p>
-          <TrackList ordered :thinglist="track_list" :iscompilation="isCompilationAlbum" />
+          <TrackList :ordered="album.use_numbers" :thinglist="track_list" :iscompilation="isCompilationAlbum" />
           <br>
         </div>
       </div>
@@ -84,7 +84,7 @@
     </div>
 
     <div v-if="album.commentary" ref="commentary">
-      <p class="commentaryHeader">Album Commentary:</p>
+      <!-- <p class="commentaryHeader">Album Commentary:</p> -->
       <div v-if="$isNewReader" class="commentaryContainer">
         <p class="commentary lock">
           <span class="lock">Finish Homestuck to unlock music commentary!</span>

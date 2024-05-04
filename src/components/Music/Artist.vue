@@ -73,6 +73,8 @@ export default {
         this.artist
       )
     },
+    // TODO: Consider list reversing feature
+
     // linkAndJoinExternalMusic() {
     //   let sources = this.artist.urls.map(url =>`<a href="${url}">${
     //     url.includes('bandcamp.com') ? 'Bandcamp' :

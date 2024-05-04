@@ -82,7 +82,7 @@
       </div>
 
       <div class="referencedBy"
-        v-if="$musicker.referenced_by[track.name]">
+        v-if="track.referenced_by">
         Tracks that reference <i>{{track.name}}</i>:
         <!-- <TrackList :reflist="$musicker.referenced_by[track.name]" /> -->
         <TrackList :reflist="track.referenced_by" />
@@ -93,9 +93,15 @@
     <!-- TODO features -->
 
     <!-- TODO lyrics -->
+    <div v-if="track.lyrics" class="commentaryContainer lyrics">
+      <p class="commentary-entry-heading">
+        Lyrics
+      </p>
+      <p class="commentary" v-html="track.lyrics" />
+    </div>
 
     <div v-if="track.commentary" ref="commentary">
-      <p class="commentaryHeader">Track Commentary:</p>
+      <!-- <p class="commentaryHeader">Track Commentary:</p> -->
       <div v-if="$isNewReader" class="commentaryContainer">
         <p class="commentary lock">
           <span class="lock">Finish Homestuck to unlock music commentary!</span>

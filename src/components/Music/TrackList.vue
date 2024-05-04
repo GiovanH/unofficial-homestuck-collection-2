@@ -2,7 +2,7 @@
   <component :is="(ordered || ordered === '') ? 'ol' : 'ul'">
     <li v-for="thing, i in _thing_or_string_list" :key="thing.directory || i"
       :class="{'teaser': $trackIsSpoiler(thing)}">
-      <span v-if="typeof thing == 'string'" v-text="name" />
+      <span v-if="typeof thing == 'string'" v-text="thing" />
       <span v-else-if="$trackIsSpoiler(thing)">??????</span>
       <span v-else-if="(iscompilation || iscompilation === '')">
         <a :href="thing.uhcLink" v-text="thing.name"/>
@@ -11,6 +11,16 @@
           :set="artist = $musicker.getArtistByName(thing.artist_contribs[0].who) || {}"
           :href="artist.uhcLink"
           v-text="artist.name" />
+        <span v-else-if="thing.artist_contribs && thing.artist_contribs.length == 2">
+          <a class="compilationArtist"
+          :set="artist = $musicker.getArtistByName(thing.artist_contribs[0].who) || {}"
+          :href="artist.uhcLink"
+          v-text="artist.name" /> and
+          <a class="compilationArtist"
+          :set="artist = $musicker.getArtistByName(thing.artist_contribs[1].who) || {}"
+          :href="artist.uhcLink"
+          v-text="artist.name" />
+        </span>
         <span v-else>...</span>)
       </span>
       <a v-else :href="thing.uhcLink" v-text="thing.name"/>
