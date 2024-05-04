@@ -8,9 +8,9 @@
     </div>
   </div>
   <div class="albumPage" v-else>
-
     <div class="nameSection">
       <h2 class="trackTitle">{{album.name}}</h2>
+
       <h3 class="byArtist" v-if="!isCompilationAlbum">
         by
         <ol class="nameList">
@@ -28,11 +28,14 @@
           </li>
         </ol>
       </h3>
+
       <h3 class="byArtist" v-if="album.cover_artist_names">
         cover art by
         <ol class="nameList">
-          <li v-for="name, i in album.cover_artist_names" :key="i">
-            <a :href="$musicker.getArtistByName(name).uhcLink" v-text="name"/>
+          <li v-for="name, i in album.cover_artist_names" :key="i"
+            :set="artist = $musicker.getArtistByName(name)">
+            <a v-if="artist" :href="artist.uhcLink" v-text="name"/>
+            <span v-else v-text="name" />
           </li>
         </ol>
       </h3>
@@ -80,15 +83,30 @@
       </div>
     </div>
 
-    <div v-if="album.commentary" class="commentaryContainer">
+    <div v-if="album.commentary" ref="commentary">
       <p class="commentaryHeader">Album Commentary:</p>
-      <p class="commentary" ref="commentary" v-if="!$isNewReader" v-html="album.commentary.replace(/\n/g, '<br>')" />
-      <p class="commentary lock" ref="commentary" v-else>
-        <span class="lock">Finish Homestuck to unlock inline commentary!</span>
-      </p>
+      <div v-if="$isNewReader" class="commentaryContainer">
+        <p class="commentary lock">
+          <span class="lock">Finish Homestuck to unlock music commentary!</span>
+        </p>
+      </div>
+      <div v-else class="commentaryContainer"
+        v-for="section, i in album.commentary.sections" :key="i">
+        <p class="commentary-entry-heading">
+          <span class="commentary-entry-artists">
+            <ol class="nameList">
+              <li v-for="name, i in section.artistReferences" :key="i"
+                :set="artist = $musicker.getArtistByName(name)">>
+                <a v-if="artist" :href="artist.uhcLink" v-text="name"/>
+                <span v-else v-text="name" />
+              </li>
+            </ol>
+          </span>:
+          <span v-if="section.annotation" class="commentary-entry-accent">(<span v-html="section.annotation" />)</span>
+        </p>
+        <p class="commentary"  v-html="section.body" />
+      </div>
     </div>
-
-    <pre v-html="album" />
   </div>
 </template>
 
@@ -130,9 +148,9 @@ export default {
     getHostname(href) {
       return (new URL(href)).hostname
     },
-    groupIsSpoiler(group) {
-      return this.$isNewReader && !group.find(track => !(track).includes('>??????<'))
-    },
+    // groupIsSpoiler(group) {
+    //   return this.$isNewReader && !group.find(track => !(track).includes('>??????<'))
+    // },
     filterCommentaryLinksAndImages(){
       return this.filterLinksAndImages(this.$refs.commentary)
     }

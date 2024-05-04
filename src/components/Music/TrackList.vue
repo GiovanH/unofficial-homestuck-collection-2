@@ -66,9 +66,9 @@ export default {
 .compilationArtist {
   filter: saturate(.4);
 }
-ul {
+// ul {
   .teaser + .teaser {
     display: none;
   }
-}
+// }
 </style>

@@ -10,6 +10,16 @@
             <Media :url="album.artpath || 'assets://archive/music/spoiler.png'" />
           </a>
           <p v-if="album.date" class="date" v-text="album.date.toLocaleDateString([], {month: 'long', day: 'numeric', year: 'numeric'})" />
+
+          <p v-if="album.artist_contribs" class="date">
+            by
+            <ol class="nameList">
+              <li v-for="c, i in album.artist_contribs" :key="i"
+                :set="artist = $musicker.getArtistByName(c.who)">
+                <a :href="artist.uhcLink" v-text="artist.name"/>
+              </li>
+            </ol>
+          </p>
         </div>
         <div>
           <h2 class="trackTitle" v-if="album.directory == 'TEASER'">??????</h2>
@@ -70,6 +80,7 @@
 <script>
 import Media from '@/components/UIElements/MediaEmbed.vue'
 import TrackList from '@/components/Music/TrackList.vue'
+import StoryPageLink from '@/components/UIElements/StoryPageLink.vue'
 
 export default {
   name: 'MusicDiscography',
@@ -77,7 +88,7 @@ export default {
     'mode'
   ],
   components: {
-    Media, TrackList
+    Media, TrackList, StoryPageLink
   },
   data: function() {
     return {
@@ -178,7 +189,7 @@ export default {
     }
   },
   methods: {
-    // thnks florrie 👍
+    // Legacy flashography:
     joinNoOxford(array, plural = 'and') {
       if (array.length === 0) {
           return ''

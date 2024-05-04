@@ -56,7 +56,7 @@ export default {
   },
   methods: {
     musicText(track){
-      return track.name + ' - ' + track.artists.join(', ')
+      return track.name + ' - ' + track.artist_contribs.map(c => c.who).join(', ')
     },
     startScroll(i) {
       let marquee = this.$refs.credit[i].querySelector('.marquee')

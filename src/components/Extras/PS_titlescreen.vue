@@ -2,7 +2,7 @@
   <GenericPage>
     <div class="pageContent">
       <MediaEmbed url="extras/PS_titlescreen/PS_titlescreen.swf"/>
-      <FlashCredit pageId="ps_titlescreen"/>
+      <FlashCredit :trackIds="['problem-sleuth-theme']"/>
     </div>
   </GenericPage>
 </template>

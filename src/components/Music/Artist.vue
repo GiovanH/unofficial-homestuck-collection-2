@@ -1,20 +1,19 @@
 <template>
   <div class="artistPage">
     <h2 class="trackTitle" v-text="artist.name"/>
-      <p class="links" v-if="artist.external_links">
-        Visit on
-        <ol class="linkList">
-          <li v-for="href, i in artist.external_links" :key="i" >
-            <a :href="href" v-text="getHostname(href)"/>
-          </li>
-        </ol>
-      </p>
-    <div class="trackography" >
+    <p class="links" v-if="artist.external_links">
+      Visit on
+      <ol class="linkList">
+        <li v-for="href, i in artist.external_links" :key="i" >
+          <a :href="href" v-text="getHostname(href)"/>
+        </li>
+      </ol>
+    </p>
+    <div class="trackography">
       <div class="album" v-for="group in creditGroups" :key="group.album.directory"
           :class="{'teaser': $albumIsSpoiler(group.album)}">
-        <!-- <div class="thumbnail" v-if="group.album.artpath"> -->
         <div class="thumbnail">
-          <a v-if="group.album.directory && !$albumIsSpoiler(group.album)" :href="`/music/album/${group.album.directory}`" class="coverArt">
+          <a v-if="!$albumIsSpoiler(group.album)" :href="group.album.uhcLink" class="coverArt">
             <img :src="group.album.artpath || 'assets://archive/music/spoiler.png'" />
           </a>
           <div v-else class="coverArt">
@@ -23,7 +22,7 @@
           <p class="date" v-if="group.album.date" v-text="group.album.date.toLocaleDateString([], {month: 'long', day: 'numeric', year: 'numeric'})" />
         </div>
         <div>
-          <a :href="group.album.uhcLink" v-if="group.album.directory && !$albumIsSpoiler(group.album)">
+          <a :href="group.album.uhcLink" v-if="!$albumIsSpoiler(group.album)">
             <h2 class="trackTitle" v-text="group.album.name" />
           </a>
           <h2 class="trackTitle" v-else>??????</h2>
@@ -36,25 +35,19 @@
                   <a :href="credit.track.uhcLink" v-text="credit.track.name" />
                   <span class="credit-what" v-if="credit.what"> ({{ credit.what }})</span>
                 </span>
-
                 <span v-else>??????</span>
               </li>
             </ul>
-            <!--
-            TODO: teasers for spoiler tracks
-            <div class="spoiler" v-if="!group.album.directory">
-              <p>Keep reading to unlock!</p>
-            </div> -->
           </div>
         </div>
+        <!-- End foreach album -->
       </div>
     </div>
-    <pre v-html="artist" />
   </div>
 </template>
 
 <script>
-import Media from '@/components/UIElements/MediaEmbed.vue'
+// import Media from '@/components/UIElements/MediaEmbed.vue'
 
 export default {
   name: 'MusicArtist',
@@ -62,7 +55,7 @@ export default {
     'artist'
   ],
   components: {
-    Media
+    // Media
   },
   data: function() {
     return {
@@ -132,4 +125,3 @@ ul {
   }
 }
 </style>
-

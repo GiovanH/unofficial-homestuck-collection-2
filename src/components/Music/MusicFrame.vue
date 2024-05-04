@@ -309,17 +309,32 @@ export default {
     }
   }
 
+  .commentaryHeader {
+    clear: both;
+    padding-top: 1em;
+  }
+
   .commentaryContainer {
     padding-top: 24px;
     clear: both;
 
+    .commentary-entry-heading {
+      span { display: inline-block; }
+      p {
+        display: inline;
+      }
+    }
+
     .commentary {
-      white-space: pre-wrap;
+      // white-space: pre-wrap;
       background-color: white;
       color: black;
       padding: 10px;
       border: solid 3px grey;
-      ::v-deep {
+      p { margin: 1em 0; }
+      p:first-child { margin-top: 0; }
+      p:last-child { margin-bottom: 0; }
+      // ::v-deep {
         a {
           color: #0000EE
         }
@@ -327,9 +342,10 @@ export default {
           max-width: 100%;
         }
         li, ul {
-          list-style-position: inside;
+          // list-style-position: inside;
+          margin-left: 1em;
         }
-      }
+      // }
       &.lock {
         text-align: center;
         font-weight: bold;

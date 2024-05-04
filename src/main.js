@@ -420,10 +420,16 @@ Vue.mixin({
 
       if (track.date) {
         return this.$timestampIsSpoiler(track.date.getTime() / 1000)
-      } else {
-        this.$logger.warn("No implemented spoilercheck for", track.album.directory, track.directory)
-        return true
       }
+      if (false) {
+        // TODO: If track shows up in a non-spoiler page, it's safe
+      }
+      if (track.directory == 'problem-sleuth-theme') {
+        return false
+      }
+
+      this.$logger.warn("No implemented spoilercheck for", track.album.directory, track.directory)
+      return true
     },
     $albumIsSpoiler(album) {
       if (!this.$isNewReader) return false
@@ -433,13 +439,16 @@ Vue.mixin({
       }
       if (album.date) {
         return this.$timestampIsSpoiler(album.date.getTime() / 1000)
-      } else if (['unreleased-tracks', 'references-beyond-homestuck', 'more-homestuck-fandom'].includes(album.directory)) {
+      }
+
+      if (['unreleased-tracks', 'references-beyond-homestuck', 'more-homestuck-fandom'].includes(album.directory)) {
         // Known albums that can have OK tracks in them
-        return false
-      } else {
-        this.$logger.warn("No implemented spoilercheck for", album.directory)
+        // ...except tracks don't have date information currently, so no point.
         return true
       }
+
+      this.$logger.warn("No implemented spoilercheck for", album.directory)
+      return true
       // return false
       // if (this.$isNewReader && ref in this.$archive.music.albums && this.$archive.music.albums[ref].date) {
       //   // It's a spoiler if it belongs to an album with a more recent timestamp than the current page

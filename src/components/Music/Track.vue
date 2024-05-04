@@ -38,7 +38,7 @@
     </div>
 
     <div class="info">
-      <iframe v-if="$localData.settings.bandcampEmbed && track.bandcampId" class="bandcamp" :key="track.directory" :src="`https://bandcamp.com/EmbeddedPlayer/size=small/bgcol=333333/linkcol=0f91ff/artwork=none/track=${track.bandcampId}/transparent=true/`" seamless></iframe>
+      <iframe v-if="$localData.settings.bandcampEmbed && track.bandcamp_id" class="bandcamp" :key="track.directory" :src="`https://bandcamp.com/EmbeddedPlayer/size=small/bgcol=333333/linkcol=0f91ff/artwork=none/track=${track.bandcamp_id}/transparent=true/`" seamless></iframe>
 
       <p class="links" v-if="track.external_links">
         Listen at
@@ -84,22 +84,40 @@
       <div class="referencedBy"
         v-if="$musicker.referenced_by[track.name]">
         Tracks that reference <i>{{track.name}}</i>:
-        <TrackList :reflist="$musicker.referenced_by[track.name]" />
+        <!-- <TrackList :reflist="$musicker.referenced_by[track.name]" /> -->
+        <TrackList :reflist="track.referenced_by" />
       </div>
 
     </div>
 
     <!-- TODO features -->
 
-    <div v-if="track.commentary" class="commentaryContainer">
-      <p class="commentaryHeader">Track Commentary:</p>
-      <p class="commentary" ref="commentary" v-if="!$isNewReader" v-html="track.commentary" />
-      <p class="commentary lock" ref="commentary" v-else>
-        <span class="lock">Finish Homestuck to unlock inline commentary!</span>
-      </p>
-    </div>
+    <!-- TODO lyrics -->
 
-    <pre v-html="{...track, album: '...'}" />
+    <div v-if="track.commentary" ref="commentary">
+      <p class="commentaryHeader">Track Commentary:</p>
+      <div v-if="$isNewReader" class="commentaryContainer">
+        <p class="commentary lock">
+          <span class="lock">Finish Homestuck to unlock music commentary!</span>
+        </p>
+      </div>
+      <div v-else class="commentaryContainer"
+        v-for="section, i in track.commentary.sections" :key="i">
+        <p class="commentary-entry-heading">
+          <span class="commentary-entry-artists">
+            <ol class="nameList">
+              <li v-for="name, i in section.artistReferences" :key="i"
+                :set="artist = $musicker.getArtistByName(name)">>
+                <a v-if="artist" :href="artist.uhcLink" v-text="name"/>
+                <span v-else v-text="name" />
+              </li>
+            </ol>
+          </span>:
+          <span v-if="section.annotation" class="commentary-entry-accent">(<span v-html="section.annotation" />)</span>
+        </p>
+        <p class="commentary" v-html="section.body" />
+      </div>
+    </div>
   </div>
 </template>
 
