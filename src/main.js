@@ -488,7 +488,8 @@ Promise.all(promises_loading).then(_ => {
         loadState: undefined,
         loadStage: undefined,
         platform: (window.isWebApp ? "webapp" : "electron"),
-        tabTheme: {} // Modified by App (avoid reacting to refs)
+        tabTheme: {}, // Modified by App (avoid reacting to refs)
+        _musicker: undefined
       }
     },
     computed: {
@@ -496,10 +497,13 @@ Promise.all(promises_loading).then(_ => {
       app(){ return this.$refs.App },
       // Only store archive-dependent state once
       musicker() {
-        return new HSMusic.Musicker(
+        // Lazy-load expensive preprocessing
+        // eslint-disable-next-line vue/no-side-effects-in-computed-properties
+        this._musicker = this._musicker || new HSMusic.Musicker(
           this.$archive.extras.hsmusic,
           this.$archive.music
         )
+        return this._musicker
       },
     },
     asyncComputed: {

@@ -10,6 +10,8 @@
   <div class="trackPage" v-else>
     <div class="nameSection">
       <h2 class="trackTitle">{{track.name}}</h2>
+
+
       <h3 class="byArtist" >
         from
         <a :href="track.album.uhcLink" v-text="track.album.name"/>
@@ -24,6 +26,13 @@
           </li>
         </ol>
       </h3>
+
+      <div v-if="track.rerelease_original" class="rerelease">
+        <h3 class="byArtist">
+          rerelease of <b><a :href="track.rerelease_original.uhcLink">{{track.rerelease_original.name}} – {{track.rerelease_original.album.name}}</a></b>
+        </h3>
+      </div>
+
       <h3 class="byArtist"
         v-if="track.coverArtists && track.coverArtists[0].who != 'homestuck'"
       >
@@ -39,6 +48,8 @@
 
     <div class="info">
       <iframe v-if="$localData.settings.bandcampEmbed && track.bandcamp_id" class="bandcamp" :key="track.directory" :src="`https://bandcamp.com/EmbeddedPlayer/size=small/bgcol=333333/linkcol=0f91ff/artwork=none/track=${track.bandcamp_id}/transparent=true/`" seamless></iframe>
+      <p v-else-if="$localData.settings.bandcampEmbed">No bandcamp embed for this track.</p>
+      <p v-else>Bandcamp disabled</p>
 
       <p class="links" v-if="track.external_links">
         Listen at
@@ -78,14 +89,14 @@
 
       <div class="references" v-if="track.referenced_track_names">
         Tracks that <i>{{track.name}}</i> references:
-        <TrackList :reflist="track.referenced_track_names" />
+        <TrackList iscompilation :reflist="track.referenced_track_names" />
       </div>
 
       <div class="referencedBy"
         v-if="track.referenced_by">
         Tracks that reference <i>{{track.name}}</i>:
         <!-- <TrackList :reflist="$musicker.referenced_by[track.name]" /> -->
-        <TrackList :reflist="track.referenced_by" />
+        <TrackList iscompilation :reflist="track.referenced_by" />
       </div>
 
     </div>

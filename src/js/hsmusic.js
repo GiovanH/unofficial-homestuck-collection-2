@@ -85,7 +85,16 @@ function thingByName(thing_reg, name) {
     // logger.warn("Multiple matches for reference", name, matches)
     return matches.filter(t => !t.def["Originally Released As"])[0]
   }
-  else return undefined
+
+  const matches_lower = Object.values(thing_reg)
+    .filter(thing => thing.def["Always Reference By Directory"] !== true)
+    .filter(thing => thing.name.toLowerCase() == name.toLowerCase())
+  if (matches_lower.length == 1) {
+    logger.warn("Fell back to case-insensitive match for", name, matches)
+    return matches_lower[0]
+  }
+
+  return undefined
 }
 
 function dateOrUndef(input) {
@@ -124,6 +133,15 @@ class Thing {
     }
   }
 
+  get wikiLink() {
+    if (this.index_name)
+      return `https://hsmusic.wiki/${this.index_name}/${this.directory}`
+    else {
+      throw Error("index_name not defined on object", this)
+      // return undefined
+    }
+  }
+
   get reference() { return `${this.index_name}:${this.directory}` }
   get directory() { return this.def['Directory'] || getKebabCase(this.name) }
 
@@ -144,17 +162,17 @@ Artist.prototype.index_name = 'artist'
 
 class Album extends Thing {
   constructor(def) {
-    super(def.header)
+    super(def)
 
     // this.header = def.header
-    this.sections = def.sections
+    this.sections = def.trackSections
 
-    this.name = def.header['Album']
-    this.external_links = def.header['URLs']
-    this.bonus = def.header['Additional Files']
+    this.name = def['Album']
+    this.external_links = def['URLs']
+    this.bonus = def['Additional Files']
 
     this.use_numbers = true
-    if (def.header['Has Track Numbers'] === false) {
+    if (def['Has Track Numbers'] === false) {
       this.use_numbers = false
     }
   }
@@ -328,39 +346,37 @@ class Musicker {
               {multiline: true}
             )
           } else {
-          return musicker.processText(
-            this.def['Lyrics']
-              .replace(/(?!^)\n/gm, '<br>\n')
-              .replace(/<br>$(?=\n\n)/gm, ''),
-            {multiline: false}
-          )
-
+            return musicker.processText(
+              this.def['Lyrics']
+                .replace(/(?!^)\n/gm, '<br>\n')
+                .replace(/<br>$(?=\n\n)/gm, ''),
+              {multiline: false}
+            )
           }
         }
       }
 
-      get artist_contribs() {
-        const oname = this.def['Originally Released As']
-        return oname
-          ? musicker.thingFromReference(oname).artist_contribs
-          : super.artist_contribs
-      }
-
-      get cover_artist_contribs() {
-        const oname = this.def['Originally Released As']
-        return oname
-          ? musicker.thingFromReference(oname).cover_artist_contribs
-          : super.cover_artist_contribs
-      }
-
-      get contributor_contribs() {
-        const oname = this.def['Originally Released As']
-        return oname
-          ? musicker.thingFromReference(oname).contributor_contribs
-          : super.contributor_contribs
-      }
-
       get bandcamp_id() { return musicker.archive_music.tracks[this.directory]?.bandcampId }
+    }
+
+    class RichTrackRerelease extends RichTrack {
+      get artist_contribs() { return this.rerelease_original.artist_contribs }
+      get cover_artist_contribs() { return this.rerelease_original.cover_artist_contribs }
+      get contributor_contribs() { return this.rerelease_original.contributor_contribs }
+      get bandcamp_id() { return this.rerelease_original.bandcamp_id }
+    }
+    defineLazyPrototypeProperty(RichTrackRerelease, 'rerelease_original', function() {
+      const thing = musicker.thingFromReference(this.def['Originally Released As'])
+      if (!thing) throw Error(`Couldn't find original track '${this.def['Originally Released As']}' of rerelease ${this.reference}`)
+      return thing
+    })
+
+    function trackFactory(def, album) {
+      if (def['Originally Released As']) {
+        return new RichTrackRerelease(def, album)
+      } else {
+        return new RichTrack(def, album)
+      }
     }
 
     class RichAlbum extends Album {
@@ -373,7 +389,7 @@ class Musicker {
       // get tracks() { return this.trackdefs.map(trackdef => new RichTrack(trackdef, this)) }
       get tracks() {
         // TODO: Pull existing objects from track_sections
-        return Object.values(this.track_sections).flat()
+        return Object.values(this.track_sections.map(s => s.tracks)).flat()
         // throw Error("Not implemented")
       }
 
@@ -405,17 +421,23 @@ class Musicker {
     defineLazyPrototypeProperty(RichAlbum, 'track_sections', function() {
       // TODO: tracks should be numbered continuously
       //
-      return Object.fromEntries(
-        Object.entries(this.sections)
-        // Filter out empty sections
-        .filter(([section_name, trackdef_list]) => (
-          !(section_name == "Unsorted" && trackdef_list.length == 0))
-        )
-        .map(([section_name, trackdef_list]) => [
-          section_name,
-          trackdef_list.map(trackdef => new RichTrack(trackdef, this))
-        ])
-      )
+      return this.sections
+        .map(section => ({
+          ...section,
+          tracks: section.tracks.map(trackdef => trackFactory(trackdef, this))
+        }))
+
+      // Object.fromEntries(
+      //   this.sections
+      //   // Filter out empty sections
+      //   .filter(({name, tracks}) => (
+      //     !(name == "Default Track Section" && tracks.length == 0))
+      //   )
+      //   .map(({name, tracks}) => [
+      //     name,
+      //     tracks.map(trackdef => trackFactory(trackdef, this))
+      //   ])
+      // )
     })
 
     class RichFlash extends Flash {
@@ -451,18 +473,21 @@ class Musicker {
     )
 
     this.reg_flashes_grouped = Object.fromEntries(
-      Object.entries(this.hsmusic.flashes)
-        .map(([section_name, flashlist]) => ([
-          section_name,
-          flashlist
-            .map(flashdef => new RichFlash(flashdef, section_name))
+      this.hsmusic.flashes
+        .map(({Act, flashes}) => ([
+          Act,
+          flashes
+            .map(flashdef => new RichFlash(flashdef, Act))
             // .map(thing => [thing.directory, thing])
         ]))
     )
 
     // Postprocessing
 
-    this.referenced_by = this.buildReferenceTable()
+    // this.referenced_by = this.buildReferenceTable()
+    defineLazyPrototypeProperty(this.constructor, 'referenced_by', function() {
+      return this.buildReferenceTable()
+    })
 
     this.all_albums_sorted = Object.values(this.reg_albums)
       .filter(album => album.def['Groups'].includes('group:official'))
@@ -494,6 +519,7 @@ class Musicker {
 
     for (const [directory, track] of Object.entries(this.reg_tracks)) {
       if (!track.referenced_track_names) continue
+      if (!track.album.def['Groups'].includes('group:official')) continue
       for (const r_track_name of track.referenced_track_names) {
         let thing;
 
@@ -558,10 +584,6 @@ class Musicker {
           // console.log("Unescaped", p1)
           return p1
         }
-      )
-      .replace(
-        'src="media/misc/thanksforplaying.jpg"',
-        'src="assets://archive/social/news/thanksforplaying.jpg"'
       )
 
     if (options.multiline) {
@@ -687,6 +709,9 @@ class Musicker {
       const {kind, ref_name} = match_kind.groups
       const matcher = matchers[kind]
       if (!matcher) {
+        const try_track = thingByName(this.reg_tracks, reference)
+        if (try_track) return try_track
+
         logger.error("No matcher defined for kind:", kind, matcher)
         return undefined
       }
@@ -732,7 +757,7 @@ class Musicker {
     let tests_passed = 0
     let tests_failed = 0
 
-    const expectEqual = async (a, b) => {
+    const expectEqual = (a, b) => {
       if (JSON.stringify(a) != JSON.stringify(b)) {
         logger.error(
           `test failed: `,
@@ -745,10 +770,10 @@ class Musicker {
       }
     }
 
-    const expectMap = async (lib, fn) => {
+    const expectMap = (lib, fn) => {
       for (const query in lib) {
         const expected = lib[query]
-        const result = await Promise.resolve(fn(query))
+        const result = fn(query)
         if (JSON.stringify(result) != JSON.stringify(expected)) {
           logger.error(
             fn, `test failed: for input`, query,
@@ -763,14 +788,14 @@ class Musicker {
     }
 
     // decomposeContribString
-    await expectMap({
+    expectMap({
       "Robert J! Lake (production, arrangement)": {who: "Robert J! Lake", what: "production, arrangement"},
       "Robert J! Lake ": {who: "Robert J! Lake ", what: null},
       "(production, arrangement)": {who: "(production, arrangement)", what: null}
     }, decomposeContribString)
 
     // thingByName
-    await expectMap({
+    expectMap({
       "Sunslammer": 'track:sunslammer',
       // Always Reference by Directory
       "Cats": undefined,
@@ -785,7 +810,7 @@ class Musicker {
     }, (name) => thingByName(this.reg_tracks, name)?.reference)
 
     // dateOrUndef
-    await expectMap({
+    expectMap({
       "Apr 13, 2009": "2009-04-13T05:00:00.000Z",
       "Apr 13 2010": "2010-04-13T05:00:00.000Z",
       "": undefined,
@@ -793,7 +818,7 @@ class Musicker {
     }, dateOrUndef)
 
     // Album artist_contribs
-    await expectMap({
+    expectMap({
       // Standard
       "act-7": [
         {"who": "Clark Powell", "what": null},
@@ -806,7 +831,7 @@ class Musicker {
     }, (ref) => this.reg_albums[ref].artist_contribs)
 
     // Album cover_artist_contribs
-    await expectMap({
+    expectMap({
       // Default
       "act-7": [{"who": "Homestuck", "what": "cover art"}],
       // Artist
@@ -820,7 +845,7 @@ class Musicker {
     }, (ref) => this.reg_albums[ref].cover_artist_contribs)
 
     // Album all_contributors: just artist_contribs again
-    await expectMap({
+    expectMap({
       "act-7": [
         {"who": "Clark Powell", "what": null},
         {"who": "Toby Fox", "what": null},
@@ -835,13 +860,13 @@ class Musicker {
     }, (ref) => this.reg_albums[ref].all_contributors)
 
     // Album uses_sections
-    await expectMap({
+    expectMap({
       "act-7": false,
       "alternia": true
     }, (ref) => this.reg_albums[ref].uses_sections)
 
     // RichAlbum artpath
-    await expectMap({
+    expectMap({
       "alternia": "assets://archive/music/alternia/cover.jpg",
       "homestuck-vol-1-4": "assets://archive/music/homestuck-vol-1-4/cover.jpg",
       // Expect old jpg art
@@ -855,7 +880,7 @@ class Musicker {
     }, (ref) => this.reg_albums[ref].artpath)
 
     // Album date
-    await expectMap({
+    expectMap({
       // Date
       "act-7": "2016-04-13T05:00:00.000Z",
       "alternia": "2010-07-18T05:00:00.000Z",
@@ -867,13 +892,13 @@ class Musicker {
     }, (ref) => this.reg_albums[ref].date)
 
     // Album commentary exists
-    await expectMap({
+    expectMap({
       "showdown": true,
       "overture-canon-edit": false
     }, (slug) => Boolean(this.getTrackBySlug.bind(this)(slug).commentary))
 
     // Track artist_contribs
-    await expectMap({
+    expectMap({
       // Explicit
       "arisen-anew": [{"who": "Tensei", "what": null}],
       // Rerelease:
@@ -883,7 +908,7 @@ class Musicker {
     }, (ref) => this.reg_tracks[ref].artist_contribs)
 
     // Track cover_artist_contribs
-    await expectMap({
+    expectMap({
       // Explicit
       "crustacean": [{"who": "Kirvia", "what": "track art"}],
       // Fallthrough
@@ -891,7 +916,7 @@ class Musicker {
     }, (ref) => this.reg_tracks[ref].cover_artist_contribs)
 
     // Track contributors
-    await expectMap({
+    expectMap({
       // Explicit
       "fiduspawn-go": [
         {"who": "David Ko", "what": null},
@@ -908,7 +933,7 @@ class Musicker {
     }, (ref) => this.reg_tracks[ref].all_contributors)
 
     // Track artpath
-    await expectMap({
+    expectMap({
       // Album fallback, extension fallback
       "overture-canon-edit": "assets://archive/music/act-7/cover.jpg",
       // Track with png extension
@@ -917,24 +942,24 @@ class Musicker {
     }, (ref) => this.reg_tracks[ref].artpath)
 
     // Track date
-    await expectMap({
+    expectMap({
       "overture-canon-edit": new Date("April 13, 2016"), // Album fallback
     }, (ref) => this.reg_tracks[ref].date)
 
     // Track duration
-    await expectMap({
+    expectMap({
       "overture-canon-edit": "9:00"
     }, (ref) => this.reg_tracks[ref].duration)
 
     // RichTrack commentary exists
-    await expectMap({
+    expectMap({
       "showdown": true,
       "overture-canon-edit": false
     }, (ref) => Boolean(this.reg_tracks[ref].commentary))
 
     // RichTrack referenced_by
-    await expectMap({
-      "crustacean": ["track:death-of-the-lusii","track:karkats-theme","track:shes-a-sp8der","track:rex-duodecim-angelus","track:some-kind-of-alien","track:ascend","track:frustracean","track:a-knights-reflection","track:youre-so-rad","track:crustacean-pesterquest","track:oppa-toby-style","track:crab-waltz"],
+    expectMap({
+      "crustacean": ['track:death-of-the-lusii', 'track:karkats-theme', 'track:shes-a-sp8der', 'track:rex-duodecim-angelus', 'track:frustracean', 'track:oppa-toby-style', 'track:ascend', 'track:some-kind-of-alien', 'track:crustacean-pesterquest'],
       "overture-canon-edit": undefined,
       "nuclear-james-roach": [
         "track:filthy-nuclear-bunker",
@@ -945,13 +970,15 @@ class Musicker {
     }, (ref) => this.reg_tracks[ref].referenced_by)
 
     // RichTrack bandcamp_id
-    await expectMap({
+    expectMap({
       "horschestra-STRONG-version": undefined,
-      "overture-canon-edit": 2310956970
+      "overture-canon-edit": 2310956970,
+      "harlequin": 2310956970,
+      "harlequin-vol-1-4": null
     }, (ref) => this.reg_tracks[ref].bandcamp_id)
 
     // RichAlbum commentary exists
-    await expectMap({
+    expectMap({
       "act-7": true,
       "the-grubbles": false
     }, (ref) => Boolean(this.reg_albums[ref].commentary))
@@ -964,22 +991,22 @@ class Musicker {
     // TODO: run later
 
     // Casing
-    await expectMap({
+    expectMap({
       "Horschestra STRONG Version": '/music/track/horschestra-STRONG-version',
     }, (name) => thingByName(this.reg_tracks, name)?.uhcLink)
 
-    await expectMap({
+    expectMap({
       "coloUrs and mayhem: Universe B": '/music/album/coloUrs-and-mayhem-universe-b',
     }, (name) => thingByName(this.reg_albums, name)?.uhcLink)
 
-    await expectMap({
+    expectMap({
       "alternia": 7,
       "coloUrs-and-mayhem-universe-a": 4,
       "coloUrs-and-mayhem-universe-b": 3,
     }, (ref) => this.reg_albums[ref].commentary.sections.length)
 
     // Music-in-flash count
-    await expectMap({
+    expectMap({
       "1": 0, // No flash
       "980": 3, // Retrieve package
       "8127": 1 // Act 7

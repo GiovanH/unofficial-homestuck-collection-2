@@ -12,6 +12,7 @@
           <Artist v-else-if="thisArtist" :artist="thisArtist" />
 
           <Discography v-else :mode="routeParams.mode" />
+
         </div>
         <div class="rightColumn">
           <div class="sidebarItem">
@@ -24,11 +25,20 @@
             <p><strong>SPOILER WARNING:</strong> Expect all external links within this database to contain direct spoilers for the end of Homestuck. Click with care!</p>
           </div>
           <div class="sidebarItem">
-            <p>This information is current as of the <br><strong>14th February, 2022</strong>.<br> For more recent info, deeper categorization, and unofficial albums, visit the <a href="https://hsmusic.wiki/">Homestuck Music Wiki.</a></p>
+            <!-- <p>This information is current as of the <br><strong>14th February, 2022</strong>.<br>  -->
+            For more recent info, deeper categorization, and unofficial albums, visit the <a href="https://hsmusic.wiki/">Homestuck Music Wiki.</a></p>
             <br>
             <p>If you're enjoying the tunes, how about dropping some money on the albums at the <a href="https://homestuck.bandcamp.com/">Official Homestuck Bandcamp?</a></p>
           </div>
         </div>
+      </div>
+
+      <div class="footer" v-if="!$isNewReader && thisThing">
+        <p>
+          <a :href="thisThing.wikiLink">
+            <i>Open </i>{{ thisThing.name }}<i> on the HSMusic Wiki</i>
+          </a>
+        </p>
       </div>
     </div>
   </div>
@@ -100,6 +110,9 @@ export default {
         return undefined
       }
       // return (this.routeParams.mode == 'artist' && key in this.$archive.music.artists) ? this.$archive.music.artists[key] : undefined
+    },
+    thisThing() {
+      return this.thisAlbum || this.thisTrack || this.thisArtist
     }
   },
   methods: {
@@ -147,8 +160,16 @@ export default {
       justify-content: center;
       align-items: center;
       align-content: center;
+      background: var(--page-pageContent);
+
+      .footer{
+        text-align: right;
+        padding: 4px;
+        margin-right: 12px;
+        width: calc(100% - 24px);
+      }
       .pageContent{
-        background: var(--page-pageContent);
+        // background: var(--page-pageContent);
         padding: 30px;
 
         .leftColumn {

@@ -60,11 +60,15 @@
       <p class="date" v-if="album.date">Released {{ album.date.toLocaleDateString([], {month: 'long', day: 'numeric', year: 'numeric'}) }}</p>
 
       <div class="albumGroup">
-        <div class="albumGroup" v-for="[section_name, track_list] in Object.entries(album.track_sections)" :key="section_name">
-          <p v-if="section_name != 'Unsorted'">
-            <em>{{section_name}}:</em>
+        <div class="albumGroup" v-for="section in album.track_sections" :key="section.name">
+          <p v-if="section.name != 'Default Track Section'">
+            <em>{{section.name}}:</em>
           </p>
-          <TrackList :ordered="album.use_numbers" :thinglist="track_list" :iscompilation="isCompilationAlbum" />
+          <TrackList
+            :ordered="album.use_numbers"
+            :thinglist="section.tracks"
+            :start="section.startIndex + 1"
+            :iscompilation="isCompilationAlbum" />
           <br>
         </div>
       </div>

@@ -130,6 +130,8 @@ function getResourceURL(request_url){
     .replace(/^http(s{0,1}):\/\/(www\.turner\.com\/planet\/mp3|fozzy42\.com\/SoundClips\/Themes\/Movies|pasko\.webs\.com\/foreign)/, `assets://storyfiles/hs2/00338`) // phat beat machine
     .replace(/^http(s{0,1}):\/\/www.whatpumpkin\.com\/squiddles\.htm(l)?/, '/squiddles/credits')
     .replace(/^http(s{0,1}):\/\/asset\.uhc\//, 'assets://')
+    .replace(/.+media\/misc\/thanksforplaying\.jpg/, 'assets://archive/social/news/thanksforplaying.jpg')
+    .replace(/^\/music\/album\/media\/misc\//, 'https://hsmusic.wiki/media/misc/')
 
   // if (resource_url != request_url)
   //   logger.debug("[getResU prelim]", request_url, "to", resource_url)

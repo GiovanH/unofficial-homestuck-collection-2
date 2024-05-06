@@ -1,12 +1,13 @@
 <template>
-  <component :is="(ordered || ordered === '') ? 'ol' : 'ul'">
+  <component :is="(ordered || ordered === '') ? 'ol' : 'ul'" :start="start">
     <li v-for="thing, i in _thing_or_string_list" :key="thing.directory || i"
       :class="{'teaser': $trackIsSpoiler(thing)}">
       <span v-if="typeof thing == 'string'" v-text="thing" />
       <span v-else-if="$trackIsSpoiler(thing)">??????</span>
       <span v-else-if="(iscompilation || iscompilation === '')">
         <a :href="thing.uhcLink" v-text="thing.name"/>
-        (<a v-if="thing.artist_contribs && thing.artist_contribs.length == 1"
+        –
+        <a v-if="thing.artist_contribs && thing.artist_contribs.length == 1"
           class="compilationArtist"
           :set="artist = $musicker.getArtistByName(thing.artist_contribs[0].who) || {}"
           :href="artist.uhcLink"
@@ -21,7 +22,7 @@
           :href="artist.uhcLink"
           v-text="artist.name" />
         </span>
-        <span v-else>...</span>)
+        <!-- <span v-else>...</span> -->
       </span>
       <a v-else :href="thing.uhcLink" v-text="thing.name"/>
     </li>
@@ -54,6 +55,7 @@ export default {
     'reflist',
     'thinglist',
     'ordered',
+    'start',
     'iscompilation'
   ],
   computed: {
@@ -64,7 +66,7 @@ export default {
         return this['reflist']
           .map(name => (this.$musicker.thingFromReference(name) || name))
       } else {
-        this.$logger.error("TrackList not passed any input")
+        this.$logger.debug("TrackList not passed any input")
         return []
       }
     }
