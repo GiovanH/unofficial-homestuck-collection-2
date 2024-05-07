@@ -31,22 +31,6 @@ function linkAnythingMan(ref) {
   }
 }
 
-function thingToJson(track) {
-  console.log(track)
-  keys = (Object.entries(track.constructor[CacheableObject.propertyDescriptors])
-      .filter(([, value]) => value.flags.update)
-      .filter(([key]) => !key.endsWith('Data'))
-      .map(([key]) => key));
-
-  return Object.fromEntries(
-    keys
-      .map(key => [
-        key,
-        CacheableObject.getUpdateValue(track, key),
-      ])
-      .filter(([, value]) => value !== null));
-}
-
 album_tracks = official_albums.flatMap(a => a.tracks)
 
 // Extend tracks list
@@ -87,12 +71,15 @@ all_artists = [
 ]
 
 all_things = {
+  // All things are sorted into buckets based on referenceType
   [Album[Thing.referenceType]]: new Set(all_albums),
   [Artist[Thing.referenceType]]: new Set(all_artists),
   [FlashAct[Thing.referenceType]]: new Set(flash_acts),
 
+  // Postprocess these into their parents
   [Flash[Thing.referenceType]]: new Set(),
   [Track[Thing.referenceType]]: new Set(),
+
   // Ignore
   ['static']: new Set(),
   [Group[Thing.referenceType]]: new Set(),
@@ -115,7 +102,7 @@ unsorted_links = [
     flatMap(linksFromText)
 ]
 
-// TODO: Add link things to all_things
+// Add link things to all_things
 unsorted_links.forEach(ref => {
   thing = linkAnythingMan(ref)
   if (thing) {
@@ -124,20 +111,11 @@ unsorted_links.forEach(ref => {
   }
 })
 
+// Convert flashes, tracks into flashacts, albums
 all_things[Flash[Thing.referenceType]].
   forEach(f => all_things[FlashAct[Thing.referenceType]].add(f.act))
 all_things[Track[Thing.referenceType]].
   forEach(f => all_things[Album[Thing.referenceType]].add(f.album))
-
-// delete all_things[Flash[Thing.referenceType]]
-// delete all_things[Track[Thing.referenceType]]
-
-// delete all_things['static']
-// delete all_things[Group[Thing.referenceType]]
-
-// temp for sections
-//
-// delete all_things[Artist[Thing.referenceType]]
 
 // mapping of referenceTypes OR keys to a list of subkeys to expand
 expand_fields = {
@@ -148,7 +126,8 @@ expand_fields = {
 }
 
 function buildSourceDocument(thingset, key) {
-
+  // Reconstruct the "source yaml" for a Thing.
+  // Optionally, pass a non-Thing object and a key used to determine its "type".
   if (thingset == undefined) return []
   return [...thingset].
     map(thing => {
