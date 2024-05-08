@@ -6,8 +6,17 @@ if (!window.isWebApp) {
   logger = console
 }
 
-import {marked} from 'marked';
+import {marked} from 'marked' // 3000 sloc
 
+function defineLazyPrototypeProperty(constructor, key, fn) {
+  Object.defineProperty(constructor.prototype, key, {
+    get() {
+      const value = fn.call(this)
+      Object.defineProperty(this, key, {value})
+      return value
+    }
+  })
+}
 
 function getKebabCase(name) {
   return name
@@ -106,19 +115,6 @@ function dateOrUndef(input) {
   }
 }
 
-function defineLazyPrototypeProperty(constructor, key, fn) {
-  const cache = new WeakMap()
-
-  Object.defineProperty(constructor.prototype, key, {
-    get() {
-      if (!cache.has(this)) {
-        cache.set(this, fn.call(this))
-      }
-      return cache.get(this)
-    }
-  })
-}
-
 class Thing {
   constructor(def) {
     this.def = def
@@ -177,16 +173,40 @@ class Album extends Thing {
     }
   }
 
-  // get artist_contribs() { return mapContribString(this.def['Artists']) }
-  // get cover_artist_contribs() { return mapContribString(this.def['Cover Artists'], 'cover art') }
-  // get contributor_contribs() { return mapContribString(this.def['Contributors'], 'contributions') }
+  get is_official() {
+    return (
+      this.def['Groups'].includes('group:official') ||
+      this.directory == 'unreleased-tracks'
+    )
+  }
 
   get all_contributors() {
     return [
       ...(this.artist_contribs || []),
       ...(this.cover_artist_contribs || []),
-      ...(this.contributor_contribs || [])
+      ...(this.contributor_contribs || []),
+      // ...(this.commentary_contribs || [])
     ]
+  }
+
+  get commentary_contribs() {
+    if (!this.commentary) {
+      return []
+    }
+    // const my_ref = this.reference
+    const hitmap = {}
+    return this.commentary.sections.reduce((acc, section) => {
+      section.artistReferences.forEach(ref => {
+        if (!hitmap[ref]) {
+          acc.push({
+            who: ref,
+            what: "album commentary"
+          })
+          hitmap[ref] = true
+        }
+      })
+      return acc
+    }, [])
   }
 
   get trackdefs() { return Object.values(this.sections).flat() }
@@ -222,37 +242,34 @@ class Track extends Thing {
     this.referenced_track_names = def['Referenced Tracks']
   }
 
-  // get artist_contribs() {
-  //   return mapContribString(this.def['Artists']) ||
-  //   this.album.artist_contribs
-  // }
-
-  // get cover_artist_contribs() {
-  //   return mapContribString(this.def['Cover Artists'], 'cover art') ||
-  //     this.album.cover_artist_contribs
-  // }
-
-  // get contributor_contribs() {
-  //   return mapContribString(this.def['Contributors']) ||
-  //     this.album.contributor_contribs
-  // }
-
   get all_contributors() {
     return [
       ...(this.artist_contribs || []),
       ...(this.cover_artist_contribs || []),
-      ...(this.contributor_contribs || [])
+      ...(this.contributor_contribs || []),
+      // ...(this.commentary_contribs || [])
     ]
   }
-  // get artist_names() {
-  //   return this.def['Artists'] || this.album.artist_names
-  // }
 
-  // get contributors() {
-  //   if (this.def['Contributors'] == undefined) return undefined
-  //   return this.def['Contributors']
-  //     .map(decomposeContribString)
-  // }
+  get commentary_contribs() {
+    if (!this.commentary) {
+      return []
+    }
+    // const my_ref = this.reference
+    const hitmap = {}
+    return this.commentary.sections.reduce((acc, section) => {
+      section.artistReferences.forEach(ref => {
+        if (!hitmap[ref]) {
+          acc.push({
+            who: ref,
+            what: "track commentary"
+          })
+          hitmap[ref] = true
+        }
+      })
+      return acc
+    }, [])
+  }
 
   get artpath() {
     if (this.def['Cover Artists']) {
@@ -386,11 +403,10 @@ class Musicker {
 
       get commentary() { return musicker.parseCommentary(this.def['Commentary']) }
 
-      // get tracks() { return this.trackdefs.map(trackdef => new RichTrack(trackdef, this)) }
       get tracks() {
-        // TODO: Pull existing objects from track_sections
-        return Object.values(this.track_sections.map(s => s.tracks)).flat()
-        // throw Error("Not implemented")
+        return Object.values(
+          this.track_sections.map(s => s.tracks)
+        ).flat()
       }
 
       get artpath() {
@@ -404,19 +420,6 @@ class Musicker {
           return super.artpath
         }
       }
-
-      // get track_sections() {
-      //   return Object.fromEntries(
-      //     Object.entries(this.sections)
-      //     .filter(([section_name, trackdef_list]) => (
-      //       !(section_name == "Unsorted" && trackdef_list.length == 0))
-      //     )
-      //     .map(([section_name, trackdef_list]) => [
-      //       section_name,
-      //       trackdef_list.map(trackdef => new RichTrack(trackdef, this))
-      //     ])
-      //   )
-      // }
     }
     defineLazyPrototypeProperty(RichAlbum, 'track_sections', function() {
       // TODO: tracks should be numbered continuously
@@ -426,26 +429,13 @@ class Musicker {
           ...section,
           tracks: section.tracks.map(trackdef => trackFactory(trackdef, this))
         }))
-
-      // Object.fromEntries(
-      //   this.sections
-      //   // Filter out empty sections
-      //   .filter(({name, tracks}) => (
-      //     !(name == "Default Track Section" && tracks.length == 0))
-      //   )
-      //   .map(({name, tracks}) => [
-      //     name,
-      //     tracks.map(trackdef => trackFactory(trackdef, this))
-      //   ])
-      // )
     })
 
     class RichFlash extends Flash {
       get ref_track() {
         return this.track_names
           .map(name => musicker.thingFromReference(name))
-          .filter(thing => thing?.artpath)
-          [0]
+          .filter(thing => thing?.artpath)[0]
       }
     }
     // Construct objects
@@ -465,9 +455,6 @@ class Musicker {
     this.reg_tracks = Object.fromEntries(
       Object.values(this.reg_albums)
       .map(album => album.tracks)
-      // .map(album => album.trackdefs
-      //   .map(trackdef => new RichTrack(trackdef, album))
-      // )
       .flat()
       .map(thing => [thing.directory, thing])
     )
@@ -478,19 +465,17 @@ class Musicker {
           Act,
           flashes
             .map(flashdef => new RichFlash(flashdef, Act))
-            // .map(thing => [thing.directory, thing])
         ]))
     )
 
     // Postprocessing
 
-    // this.referenced_by = this.buildReferenceTable()
     defineLazyPrototypeProperty(this.constructor, 'referenced_by', function() {
       return this.buildReferenceTable()
     })
 
     this.all_albums_sorted = Object.values(this.reg_albums)
-      .filter(album => album.def['Groups'].includes('group:official'))
+      .filter(album => album.is_official)
     this.all_albums_sorted.sort((a, b) => a.date - b.date)
 
     this.flash_groups_sorted =
@@ -517,13 +502,12 @@ class Musicker {
   buildReferenceTable() {
     const referenced_by = {}
 
-    for (const [directory, track] of Object.entries(this.reg_tracks)) {
+    // eslint-disable-next-line no-unused-vars
+    for (const [_directory, track] of Object.entries(this.reg_tracks)) {
       if (!track.referenced_track_names) continue
-      if (!track.album.def['Groups'].includes('group:official')) continue
+      if (!track.album.is_official) continue
       for (const r_track_name of track.referenced_track_names) {
-        let thing;
-
-        thing = this.thingFromReference(r_track_name)
+        const thing = this.thingFromReference(r_track_name)
         if (!thing) {
           logger.warn(`Couldn't look up referenced_by thing ${r_track_name}`)
           continue
@@ -656,25 +640,48 @@ class Musicker {
     return track_list
   }
 
-  creditGroupsForArtistInAlbums(albumlist, artist) {
+  creditGroupsForArtistInAlbums(albumlist, artist, options) {
     // Return a list of credit groups, grouped by album
     // [{album: album, credits: [{what, track}...], }...]
     var creditGroups = []
+    options = options || {}
 
     for (const album of albumlist) {
-      const credits = []
-      for (const track of album.tracks) {
-        // Main artist contributions
-        for (const {who, what} of track.all_contributors) {
-          if (artist.name == who) {
-            credits.push({
+      const credits = {
+        album: [],
+        track: []
+      }
+
+      function _accumulateCredits(thing, contribs) {
+        const artist_hitmap = {}
+        const key = thing.index_name
+        for (const {who, what} of contribs) {
+          if (!artist_hitmap[artist.reference] && (artist.name == who || artist.reference == who)) {
+            credits[key].push({
               what: what, // (what ? `${track.name} (${what})` : track.name),
-              track: track
+              album: album,
+              [key]: thing
             })
+            artist_hitmap[artist.reference] = true
           }
         }
       }
-      if (credits.length > 0) {
+
+      var album_contributors = [...album.all_contributors]
+      if (options.include_commentary) {
+        album_contributors = [...album_contributors, ...album.commentary_contribs]
+      }
+      _accumulateCredits(album, album_contributors)
+
+      for (const track of album.tracks) {
+        var track_contributors = [...track.all_contributors]
+        if (options.include_commentary) {
+          track_contributors = [...track_contributors, ...track.commentary_contribs]
+        }
+        _accumulateCredits(track, track_contributors)
+      }
+
+      if (credits['album'].length + credits['track'].length > 0) {
         creditGroups.push({
           credits,
           album
@@ -686,19 +693,11 @@ class Musicker {
   }
 
   thingFromReference(reference) {
-    // FIXME: Implement properly
-    // [
-    //   'artist', 'flash-act',
-    //   'album',  'flash',
-    //   'track',  null,
-    //   'media',  'group',
-    //   'static'
-    // ]
-
     const matchers = {
       'artist': (ref => this.reg_artists[ref]),
       'track': (ref => this.reg_tracks[ref]),
       'album': (ref => this.reg_albums[ref]),
+      'media': (ref => undefined), // HACK: skip
       'group': (ref => this.reg_artists[ref]), // HACK: Try to find solo artist
       'flash': (ref => ({uhcLink: `/homestuck/${ref}`})), // HACK: link to flash
       'flash-act': (ref => ({uhcLink: `/music/features`})), // HACK: link to flash index

@@ -24,12 +24,15 @@
         <div>
           <a :href="group.album.uhcLink" v-if="!$albumIsSpoiler(group.album)">
             <h2 class="trackTitle" v-text="group.album.name" />
+            <span v-for="credit, i in group.credits.album" :key="i">
+              <i class="credit-what" v-if="credit.what"> ({{ credit.what }})</i>
+            </span>
           </a>
           <h2 class="trackTitle" v-else>??????</h2>
 
           <div class="credits">
             <ul class="musicList">
-              <li v-for="credit, i in group.credits" :key="i"
+              <li v-for="credit, i in group.credits.track" :key="i"
                 :class="{'teaser': $trackIsSpoiler(credit.track)}">
                 <span v-if="!$trackIsSpoiler(credit.track)">
                   <a :href="credit.track.uhcLink" v-text="credit.track.name" />
@@ -70,7 +73,8 @@ export default {
       // [{credits: [{what, whatlink}...], album: album}...]
       return this.$musicker.creditGroupsForArtistInAlbums(
         this.$musicker.all_albums_sorted,
-        this.artist
+        this.artist,
+        {include_commentary: true}
       )
     },
     // TODO: Consider list reversing feature

@@ -1,5 +1,5 @@
 <template>
-  <component :is="(ordered || ordered === '') ? 'ol' : 'ul'" :start="start">
+  <component :is="(ordered || ordered === '') ? 'ol' : 'ul'" :start="start" class="tracklist">
     <li v-for="thing, i in _thing_or_string_list" :key="thing.directory || i"
       :class="{'teaser': $trackIsSpoiler(thing)}">
       <span v-if="typeof thing == 'string'" v-text="thing" />
@@ -78,9 +78,18 @@ export default {
 .compilationArtist {
   filter: saturate(.4);
 }
-// ul {
-  .teaser + .teaser {
-    display: none;
+
+.tracklist {
+  list-style-position: outside;
+  margin-left: 1rem;
+  li {
+    padding: 3px 0;
   }
-// }
+}
+.tracklist li {
+  padding: 3px 0;
+}
+.teaser + .teaser {
+  display: none;
+}
 </style>

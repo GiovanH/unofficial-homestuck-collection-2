@@ -249,8 +249,10 @@ export default {
     }
   }
 
+  // Inline list formatting
   .nameList, .linkList {
     display: inline;
+    margin: 0;
     li { display: inline; }
     li + li {
       &:before { content: ", "; }
@@ -275,6 +277,7 @@ export default {
     }
   }
 
+  // Album art
   .middleColumn {
     float: right;
     padding-bottom: 20px;
@@ -288,10 +291,12 @@ export default {
     }
   }
 
+  // Left-side div common to Album, Track views
   .info {
     float: left;
     width: 376px;
 
+    // Embed
     .bandcamp {
       width: 100%;
       height: 42px;
@@ -302,21 +307,7 @@ export default {
       margin-top: 16px;
     }
 
-    ol, ul {
-      list-style-position: inside;
-      // color: var(--page-links-visited);;
-      &.groupList {
-        margin-left: 20px;
-      }
-    }
-    li {
-      padding: 3px 0;
-      // ::v-deep {
-      //   a {
-      //     padding-right: 6px;
-      //   }
-      // }
-    }
+    // LinkList handled in linklist.vue
 
     .bonusItems ul {
       list-style-position: inherit;
@@ -374,6 +365,7 @@ export default {
     }
   }
 
+  // List of tracks, common to Artist and Discography views
   .trackography {
     margin-top: 20px;
     .album {
