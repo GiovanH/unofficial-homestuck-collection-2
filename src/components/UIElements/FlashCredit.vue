@@ -36,15 +36,25 @@ export default {
     trackList() {
       // List of Tracks on the page
       if (this.trackIds) {
-        return this.trackIds.map(this.$musicker.getTrackBySlug)
+        try {
+          return this.trackIds.map((slug) => this.$musicker.getTrackBySlug(slug))
+        } catch (e) {
+          this.$logger.error("Could not look up track ids", this.trackIds)
+          return []
+        }
       } else if (this.pageId) {
-        const viz_num = this.$mspaToViz(this.pageId).p
-        const track_list = this.$musicker.tracksInPage(viz_num)
+        const viz_page = this.$mspaToViz(this.pageId)
+        if (viz_page) {
+          const viz_num = viz_page.p
+          const track_list = this.$musicker.tracksInPage(viz_num)
+          return track_list
+        } else {
+          this.$logger.warn("No such viz page", this.pageId)
+          return []
+        }
 
         // TODO: Bolin
         // TODO: 008143 (???)
-
-        return track_list
       } else {
         this.$logger.error("Tried to invoke flashcredit without a page or explicit ids")
         return []
