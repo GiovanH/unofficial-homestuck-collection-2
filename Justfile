@@ -109,7 +109,7 @@ litepack-mods:
     #!/bin/bash
     (
         set -eu -o pipefail
-        cd ..
+        # cd ..
         source ./litepack.sh
 
         copyImods &
